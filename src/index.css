@@ -103,4 +103,41 @@
   .transition-smooth {
     transition: var(--transition-smooth);
   }
+  .radar-sweep {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    height: 200%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 70%,
+      hsl(190 95% 50% / 0.1) 90%,
+      hsl(190 95% 50% / 0.8) 100%
+    );
+    transform-origin: 0 0;
+    animation: radar-spin 3s linear infinite;
+    pointer-events: none;
+    border-radius: 50%;
+  }
+
+  @keyframes radar-spin {
+    0% { transform: rotate(0deg) translate(-50%, -50%); }
+    100% { transform: rotate(360deg) translate(-50%, -50%); }
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 10px hsl(142 70% 45% / 0.5);
+    }
+    50% {
+      opacity: .5;
+      box-shadow: 0 0 20px hsl(142 70% 45% / 0);
+    }
+  }
 }

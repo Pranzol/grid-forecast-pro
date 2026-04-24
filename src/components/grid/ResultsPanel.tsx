@@ -364,20 +364,29 @@ function LegendDot({
 
 function EmptyState() {
   return (
-    <Card className="bg-surface shadow-elevated border-border/60 border-dashed">
-      <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="rounded-full bg-primary/10 p-5 mb-5 ring-1 ring-primary/20">
-          <Gauge className="h-8 w-8 text-primary" />
+    <Card className="bg-surface shadow-elevated border-border/60 border-dashed relative overflow-hidden h-[500px] flex items-center justify-center">
+      {/* Dynamic Background Scanning Radar */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+        <div className="radar-sweep" />
+        <div className="absolute inset-0 border-[1px] border-primary/20 rounded-full h-[400px] w-[400px] flex items-center justify-center">
+          <div className="border-[1px] border-primary/20 rounded-full h-[300px] w-[300px] flex items-center justify-center">
+            <div className="border-[1px] border-primary/20 rounded-full h-[200px] w-[200px]" />
+          </div>
         </div>
-        <h3 className="text-lg font-semibold tracking-tight">
-          Awaiting Forecast Parameters
+      </div>
+      
+      <CardContent className="flex flex-col items-center justify-center text-center relative z-10">
+        <div className="rounded-full bg-primary/10 p-6 mb-6 ring-1 ring-primary/20 relative">
+          <div className="absolute inset-0 rounded-full bg-primary/10 animate-pulse-glow" />
+          <Gauge className="h-10 w-10 text-primary relative z-10" />
+        </div>
+        <h3 className="text-xl font-bold tracking-tight text-gradient-primary">
+          System Standby
         </h3>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        <p className="mt-3 max-w-[300px] text-sm text-muted-foreground leading-relaxed">
           Configure your prediction parameters in the panel and click{" "}
-          <span className="font-medium text-foreground">
-            Generate Grid Forecast
-          </span>{" "}
-          to view demand projections, peak times, and recommended grid actions.
+          <span className="font-semibold text-primary">Generate</span>{" "}
+          to initialize the AI forecast simulation.
         </p>
       </CardContent>
     </Card>
@@ -386,26 +395,36 @@ function EmptyState() {
 
 function LoadingState() {
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+    <div className="space-y-6 relative animate-pulse">
+      {/* Calculating overlay text */}
+      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pt-[10%]">
+        <div className="bg-background/80 backdrop-blur-md px-6 py-4 rounded-xl shadow-glow border border-primary/30 flex flex-col items-center gap-3">
+          <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <span className="text-sm font-mono text-primary font-semibold tracking-widest uppercase">
+            Processing Simulation...
+          </span>
+        </div>
+      </div>
+      
+      <div className="grid gap-4 md:grid-cols-3 opacity-30">
         {[0, 1, 2].map((i) => (
           <Card key={i} className="bg-surface shadow-elevated border-border/60">
             <CardHeader className="pb-2">
-              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-3 w-24 bg-primary/20" />
             </CardHeader>
             <CardContent className="space-y-3">
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-9 w-32 bg-primary/20" />
+              <Skeleton className="h-3 w-40 bg-primary/10" />
             </CardContent>
           </Card>
         ))}
       </div>
-      <Card className="bg-surface shadow-elevated border-border/60">
+      <Card className="bg-surface shadow-elevated border-border/60 opacity-30">
         <CardHeader>
-          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-48 bg-primary/20" />
         </CardHeader>
         <CardContent>
-          <Skeleton className="h-[320px] w-full" />
+          <Skeleton className="h-[320px] w-full bg-primary/10" />
         </CardContent>
       </Card>
     </div>
