@@ -10,6 +10,7 @@ export interface PredictionResponse {
   city: string;
   region: string;
   predictedDemandMW: number;
+  totalEnergyMWh: number;
   confidencePercent: number;
   peakTime: string;
   peakDemandMW: number;
