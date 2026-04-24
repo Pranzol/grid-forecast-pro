@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format } from "date-fns";
 import {
   Activity,
@@ -47,6 +48,8 @@ export function PredictionForm({
   onSubmit,
   loading,
 }: PredictionFormProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
   return (
     <Card className="bg-surface shadow-elevated border-border/60 animate-fade-in-up">
       <CardHeader className="border-b border-border/60">
@@ -80,7 +83,7 @@ export function PredictionForm({
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Target Date
           </Label>
-          <Popover>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -100,9 +103,12 @@ export function PredictionForm({
               <Calendar
                 mode="single"
                 selected={state.date}
-                onSelect={(date) =>
-                  date && setState((s) => ({ ...s, date }))
-                }
+                onSelect={(date) => {
+                  if (date) {
+                    setState((s) => ({ ...s, date }));
+                    setCalendarOpen(false);
+                  }
+                }}
                 initialFocus
                 className={cn("p-3 pointer-events-auto")}
               />
