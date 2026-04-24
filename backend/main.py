@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
-import numpy as np, joblib, json
+import numpy as np, joblib, json, os
 
 # ── Load artifacts ─────────────────────────────────────────────────────────
 model          = joblib.load("models/demand_model.pkl")
@@ -12,9 +12,103 @@ feature_list   = joblib.load("models/feature_list.pkl")
 with open("models/area_lookup.json") as f:
     AREA_LOOKUP = json.load(f)
 
+# ── Load circle→area dataset (from TG-NPDCL CSV) ──────────────────────────
+_circle_areas_path = os.path.join(os.path.dirname(__file__), "circle_areas.json")
+if os.path.exists(_circle_areas_path):
+    with open(_circle_areas_path) as f:
+        CIRCLE_AREAS: dict = json.load(f)
+else:
+    CIRCLE_AREAS = {}
+
 KNOWN_REGIONS = list(region_encoder.classes_)
 print(f" Regions : {KNOWN_REGIONS}")
 print(f" Areas   : {len(AREA_LOOKUP):,} Telangana areas loaded")
+print(f" Circles : {list(CIRCLE_AREAS.keys())}")
+
+# ── India state → TG-NPDCL circles mapping ───────────────────────────────
+# All 28 states + 8 UTs. Only Telangana has real circle data in this dataset.
+# Other states map to the model's nearest grid region.
+STATE_CIRCLES: dict[str, list[str]] = {
+    "Andhra Pradesh":           [],
+    "Arunachal Pradesh":        [],
+    "Assam":                    [],
+    "Bihar":                    [],
+    "Chhattisgarh":             [],
+    "Goa":                      [],
+    "Gujarat":                  [],
+    "Haryana":                  [],
+    "Himachal Pradesh":         [],
+    "Jharkhand":                [],
+    "Karnataka":                [],
+    "Kerala":                   [],
+    "Madhya Pradesh":           [],
+    "Maharashtra":              [],
+    "Manipur":                  [],
+    "Meghalaya":                [],
+    "Mizoram":                  [],
+    "Nagaland":                 [],
+    "Odisha":                   [],
+    "Punjab":                   [],
+    "Rajasthan":                [],
+    "Sikkim":                   [],
+    "Tamil Nadu":               [],
+    "Telangana":                sorted(CIRCLE_AREAS.keys()),
+    "Tripura":                  [],
+    "Uttar Pradesh":            [],
+    "Uttarakhand":              [],
+    "West Bengal":              [],
+    # Union Territories
+    "Andaman & Nicobar Islands":[],
+    "Chandigarh":               [],
+    "Dadra & Nagar Haveli":     [],
+    "Daman & Diu":              [],
+    "Delhi":                    [],
+    "Jammu & Kashmir":          [],
+    "Ladakh":                   [],
+    "Lakshadweep":              [],
+    "Puducherry":               [],
+}
+
+# State → model region mapping (for prediction routing)
+STATE_TO_REGION: dict[str, str] = {
+    "Andhra Pradesh":           "Southern",
+    "Arunachal Pradesh":        "NorthEastern",
+    "Assam":                    "NorthEastern",
+    "Bihar":                    "Eastern",
+    "Chhattisgarh":             "Western",
+    "Goa":                      "Western",
+    "Gujarat":                  "Western",
+    "Haryana":                  "Northern",
+    "Himachal Pradesh":         "Northern",
+    "Jharkhand":                "Eastern",
+    "Karnataka":                "Southern",
+    "Kerala":                   "Southern",
+    "Madhya Pradesh":           "Western",
+    "Maharashtra":              "Western",
+    "Manipur":                  "NorthEastern",
+    "Meghalaya":                "NorthEastern",
+    "Mizoram":                  "NorthEastern",
+    "Nagaland":                 "NorthEastern",
+    "Odisha":                   "Eastern",
+    "Punjab":                   "Northern",
+    "Rajasthan":                "Northern",
+    "Sikkim":                   "NorthEastern",
+    "Tamil Nadu":               "Southern",
+    "Telangana":                "Southern",
+    "Tripura":                  "NorthEastern",
+    "Uttar Pradesh":            "Northern",
+    "Uttarakhand":              "Northern",
+    "West Bengal":              "Eastern",
+    "Andaman & Nicobar Islands":"Southern",
+    "Chandigarh":               "Northern",
+    "Dadra & Nagar Haveli":     "Western",
+    "Daman & Diu":              "Western",
+    "Delhi":                    "Northern",
+    "Jammu & Kashmir":          "Northern",
+    "Ladakh":                   "Northern",
+    "Lakshadweep":              "Southern",
+    "Puducherry":               "Southern",
+}
 
 # ── City → Region map (major Indian cities) ────────────────────────────────
 CITY_TO_REGION = {
@@ -89,11 +183,12 @@ app.add_middleware(
 
 # ── Schemas ────────────────────────────────────────────────────────────────
 class PredictRequest(BaseModel):
-    city: str             # city name OR TG-NPDCL area name
-    date: str             # YYYY-MM-DD
-    time: str             # HH:MM
-    duration: int         # 1–24 hours
-    sqft: Optional[float] = None   # building size — triggers sqft output
+    city: str                       # city/area name OR TG-NPDCL area name
+    date: str                       # YYYY-MM-DD
+    time: str                       # HH:MM
+    duration: int                   # 1-24 hours
+    sqft: Optional[float] = None    # building size - triggers sqft output
+    state: Optional[str]  = None    # Indian state (for state+area flow)
 
 class PredictionPoint(BaseModel):
     time: str
@@ -146,11 +241,15 @@ def predict(req: PredictRequest):
     region     = None
     city_label = req.city
 
-    # ── Route 1: known TG-NPDCL area ──────────────────────────────────────
+    # ── Route 1: known TG-NPDCL area ─────────────────────────────────────
     if area_data:
         region = area_data["region"]   # always "Southern"
 
-    # ── Route 2: known city name ───────────────────────────────────────────
+    # ── Route 2: state-based lookup ───────────────────────────────────────
+    elif req.state and req.state in STATE_TO_REGION:
+        region = STATE_TO_REGION[req.state]
+
+    # ── Route 3: known city name ───────────────────────────────────────────
     elif req.city in CITY_TO_REGION:
         region = CITY_TO_REGION[req.city]
 
@@ -159,7 +258,8 @@ def predict(req: PredictRequest):
             status_code=400,
             detail=(
                 f"Unknown area/city '{req.city}'. "
-                f"Use a Telangana area name (e.g. 'ADILABAD - NORTH') "
+                f"Provide a valid Indian state via 'state' field, "
+                f"a Telangana area name (e.g. 'ADILABAD - NORTH'), "
                 f"or a city name (e.g. 'Hyderabad')."
             )
         )
@@ -262,6 +362,39 @@ def get_areas():
 def get_cities():
     return {"cities": list(CITY_TO_REGION.keys())}
 
+@app.get("/states")
+def get_states():
+    """Return all Indian states in alphabetical order with available circles"""
+    return {
+        "states": sorted(STATE_CIRCLES.keys()),
+        "state_circles": {s: sorted(c) for s, c in STATE_CIRCLES.items()},
+    }
+
+@app.get("/states/{state}/areas")
+def get_areas_by_state(state: str):
+    """Return all areas for a given Indian state, grouped by circle"""
+    if state not in STATE_CIRCLES:
+        raise HTTPException(status_code=404, detail=f"State '{state}' not found")
+    circles = STATE_CIRCLES[state]
+    if not circles:
+        return {
+            "state": state,
+            "region": STATE_TO_REGION.get(state, "Unknown"),
+            "circles": {},
+            "message": "No granular area data available for this state. Predictions use regional model."
+        }
+    result: dict[str, list[str]] = {}
+    for circle in circles:
+        areas = sorted(CIRCLE_AREAS.get(circle, []))
+        if areas:
+            result[circle] = areas
+    return {
+        "state": state,
+        "region": STATE_TO_REGION.get(state, "Unknown"),
+        "circles": result,
+        "total_areas": sum(len(v) for v in result.values()),
+    }
+
 @app.get("/health")
 def health():
-    return {"status":"ok","regions":KNOWN_REGIONS,"areas":len(AREA_LOOKUP)}
+    return {"status":"ok","regions":KNOWN_REGIONS,"areas":len(AREA_LOOKUP),"circles":len(CIRCLE_AREAS)}
