@@ -35,6 +35,7 @@ export interface PredictionRequest {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "grid_secure_key_2026";
 
 /**
  * Resolve a LocationValue to the `city` string the backend expects.
@@ -42,9 +43,9 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
  */
 export function resolveCityFromLocation(location: LocationValue): {
   city: string;
-  state: string;
+  state?: string;
 } {
-  const { state, circle, area } = location;
+  const { region, state, circle, area } = location;
 
   if (area && area.trim()) {
     // Specific area from TG-NPDCL dataset — send as uppercase (backend expects it)
@@ -104,7 +105,12 @@ export function resolveCityFromLocation(location: LocationValue): {
     "Andaman & Nicobar Islands": "Kolkata",
   };
 
-  return { city: STATE_CAPITALS[state] ?? state, state };
+  if (state) {
+    return { city: STATE_CAPITALS[state] ?? state, state };
+  }
+
+  // Region only fallback
+  return { city: region || "National" };
 }
 
 export async function fetchPredictionData(
@@ -121,7 +127,10 @@ export async function fetchPredictionData(
 
   const res = await fetch(`${API_BASE}/predict`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "X-API-Key": API_KEY 
+    },
     body: JSON.stringify(reqBody),
   });
 

@@ -7,13 +7,15 @@ import {
   STATES_WITH_AREAS,
   formatCircleName,
   formatAreaName,
+  STATE_TO_REGION,
 } from "@/lib/locationData";
 import { fetchStateAreas, fetchCircleDetail } from "@/lib/fetchLocationData";
 
 export interface LocationValue {
+  region: string;    // National grid region (NEW)
   state: string;
   circle: string;    // district/circle (only for Telangana)
-  division: string;  // sub-district division (NEW)
+  division: string;  // sub-district division
   area: string;      // specific area
 }
 
@@ -97,13 +99,34 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
     Record<string, Record<string, Record<string, string[]>>>
   >({});
 
-  // ── State options (alphabetical) ──────────────────────────────────────────
-  const stateOptions = ALL_STATES.map((s) => ({ value: s, label: s }));
+  // ── Options ──────────────────────────────────────────────────────────────
+  const REGIONS = ["National", "Northern", "Western", "Eastern", "Southern", "NorthEastern"];
+  const regionOptions = REGIONS.map((r) => ({ value: r, label: r + " Region" }));
+
+  // Filter states by selected region
+  const availableStates = value.region && value.region !== "National"
+    ? ALL_STATES.filter(s => STATE_TO_REGION[s] === value.region)
+    : ALL_STATES;
+
+  const stateOptions = availableStates.map((s) => ({ value: s, label: s }));
+
+  // ── When region changes ───────────────────────────────────────────────────
+  const handleRegionChange = React.useCallback(
+    (region: string) => {
+      onChange({ region, state: "", circle: "", division: "", area: "" });
+      setCircles([]);
+      setDivisions([]);
+      setAreas([]);
+      setCircleAreaMap({});
+      setCircleHierarchy({});
+    },
+    [onChange]
+  );
 
   // ── When state changes ────────────────────────────────────────────────────
   const handleStateChange = React.useCallback(
     async (state: string) => {
-      onChange({ state, circle: "", division: "", area: "" });
+      onChange({ ...value, state, circle: "", division: "", area: "" });
       setCircles([]);
       setDivisions([]);
       setAreas([]);
@@ -197,24 +220,46 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
 
   return (
     <div className="space-y-3">
-      {/* ── State ── */}
+      {/* ── Region ── NEW */}
       <div className="space-y-1.5">
         <label
-          htmlFor="select-state"
+          htmlFor="select-region"
           className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
         >
-          <MapPin className="h-3 w-3" />
-          State / UT
+          <Layers className="h-3 w-3" />
+          Grid Region
         </label>
         <StyledSelect
-          id="select-state"
-          value={value.state}
-          onChange={handleStateChange}
-          placeholder="Select a state..."
-          options={stateOptions}
-          icon={<MapPin className="h-3.5 w-3.5" />}
+          id="select-region"
+          value={value.region}
+          onChange={handleRegionChange}
+          placeholder="Select a Region..."
+          options={regionOptions}
+          icon={<Layers className="h-3.5 w-3.5" />}
         />
       </div>
+
+      {/* ── State ── */}
+      {value.region && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="select-state"
+            className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+          >
+            <MapPin className="h-3 w-3" />
+            State / UT
+            <span className="text-[10px] text-muted-foreground/50 ml-1">(Optional)</span>
+          </label>
+          <StyledSelect
+            id="select-state"
+            value={value.state}
+            onChange={handleStateChange}
+            placeholder="Select a state..."
+            options={stateOptions}
+            icon={<MapPin className="h-3.5 w-3.5" />}
+          />
+        </div>
+      )}
 
       {/* ── Circle / District ── */}
       {value.state && stateHasGranularData && (

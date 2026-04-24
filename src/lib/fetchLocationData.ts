@@ -1,4 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
+const API_KEY = import.meta.env.VITE_API_KEY ?? "grid_secure_key_2026";
+
+const defaultHeaders = { "X-API-Key": API_KEY };
 
 // ── Response types ──────────────────────────────────────────────────────────
 
@@ -37,7 +40,7 @@ export async function fetchStateAreas(
   state: string
 ): Promise<StateAreasResponse> {
   const encoded = encodeURIComponent(state);
-  const res = await fetch(`${API_BASE}/states/${encoded}/areas`);
+  const res = await fetch(`${API_BASE}/states/${encoded}/areas`, { headers: defaultHeaders });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? `Failed to fetch areas for ${state}`);
@@ -50,14 +53,14 @@ export async function fetchStates(): Promise<{
   states: string[];
   state_circles: Record<string, string[]>;
 }> {
-  const res = await fetch(`${API_BASE}/states`);
+  const res = await fetch(`${API_BASE}/states`, { headers: defaultHeaders });
   if (!res.ok) throw new Error("Failed to fetch states");
   return res.json();
 }
 
 /** Fetch all TG-NPDCL circles (top-level districts) */
 export async function fetchDistricts(): Promise<DistrictsResponse> {
-  const res = await fetch(`${API_BASE}/districts`);
+  const res = await fetch(`${API_BASE}/districts`, { headers: defaultHeaders });
   if (!res.ok) throw new Error("Failed to fetch districts");
   return res.json();
 }
@@ -67,7 +70,7 @@ export async function fetchCircleDetail(
   circle: string
 ): Promise<CircleDetailResponse> {
   const encoded = encodeURIComponent(circle);
-  const res = await fetch(`${API_BASE}/districts/${encoded}`);
+  const res = await fetch(`${API_BASE}/districts/${encoded}`, { headers: defaultHeaders });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? `Failed to fetch circle ${circle}`);
@@ -82,7 +85,7 @@ export async function fetchDivisionDetail(
 ): Promise<DivisionDetailResponse> {
   const c = encodeURIComponent(circle);
   const d = encodeURIComponent(division);
-  const res = await fetch(`${API_BASE}/districts/${c}/${d}`);
+  const res = await fetch(`${API_BASE}/districts/${c}/${d}`, { headers: defaultHeaders });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? `Failed to fetch division ${division}`);

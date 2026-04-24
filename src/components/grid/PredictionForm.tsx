@@ -184,7 +184,7 @@ export function PredictionForm({
 
         <Button
           onClick={onSubmit}
-          disabled={loading || !state.location.state}
+          disabled={loading || (!state.location.region && !state.location.state)}
           className="w-full bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold shadow-glow hover:opacity-95 transition-smooth h-11"
         >
           {loading ? (
