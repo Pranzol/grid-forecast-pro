@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Activity, Radio } from "lucide-react";
+import { Activity, Radio, Settings2 } from "lucide-react";
 import { PredictionForm, type FormState } from "@/components/grid/PredictionForm";
 import { ResultsPanel } from "@/components/grid/ResultsPanel";
 import {
@@ -8,6 +8,9 @@ import {
   type PredictionResponse,
 } from "@/lib/fetchPredictionData";
 import { toast } from "@/hooks/use-toast";
+import { useLiveTime } from "@/hooks/useLiveTime";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 const Index = () => {
   const [form, setForm] = useState<FormState>({
@@ -18,6 +21,7 @@ const Index = () => {
   });
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<PredictionResponse | null>(null);
+  const liveTime = useLiveTime();
 
   const handleSubmit = async () => {
     if (!form.location.region && !form.location.state) {
@@ -63,12 +67,12 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative pb-24 lg:pb-0">
       {/* Top bar */}
       <header className="border-b border-border/60 bg-card/40 backdrop-blur-sm sticky top-0 z-30">
         <div className="container flex h-16 items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
-            <div className="relative">
+            <div className="relative hover:scale-105 transition-smooth cursor-pointer">
               <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary-glow/20 p-1.5 shadow-glow flex items-center justify-center">
                 <img src="/logo.png" alt="EnerPlot Logo" className="h-7 w-7 object-contain" />
               </div>
@@ -77,17 +81,17 @@ const Index = () => {
               <h1 className="text-base font-bold tracking-tight leading-none">
                 Ener<span className="text-gradient-primary">Plot</span>
               </h1>
-              <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+              <p className="text-[11px] text-muted-foreground mt-0.5 font-mono hidden sm:block">
                 Short-Term Demand Prediction System
               </p>
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Radio className="h-3.5 w-3.5 text-success animate-pulse-glow" />
-            <span className="font-mono">SYSTEM ONLINE</span>
-            <span className="mx-2 h-3 w-px bg-border" />
-            <span className="font-mono">{format(new Date(), "HH:mm 'UTC'")}</span>
+            <span className="font-mono hidden sm:inline-block">SYSTEM ONLINE</span>
+            <span className="mx-2 h-3 w-px bg-border hidden sm:block" />
+            <span className="font-mono">{liveTime}</span>
           </div>
         </div>
       </header>
@@ -104,7 +108,8 @@ const Index = () => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-          <aside className="lg:sticky lg:top-24 lg:self-start">
+          {/* Desktop Form */}
+          <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start">
             <PredictionForm
               state={form}
               setState={setForm}
@@ -119,7 +124,27 @@ const Index = () => {
         </div>
       </main>
 
-      <footer className="border-t border-border/60 mt-12">
+      {/* Mobile Form Trigger & Sheet */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t border-border z-40">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button className="w-full bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold shadow-glow h-12 text-base">
+              <Settings2 className="mr-2 h-5 w-5" />
+              Configure Forecast
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="h-[85vh] sm:h-[90vh] pt-10 px-4 overflow-y-auto rounded-t-2xl border-border bg-surface">
+            <PredictionForm
+              state={form}
+              setState={setForm}
+              onSubmit={handleSubmit}
+              loading={loading}
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      <footer className="border-t border-border/60 mt-12 mb-16 lg:mb-0">
         <div className="container px-4 md:px-6 py-4 flex items-center justify-between text-[11px] font-mono text-muted-foreground">
           <span>© EnerPlot · Operator Console v1.0</span>
           <span className="hidden sm:inline">Secure connection · TLS 1.3</span>
