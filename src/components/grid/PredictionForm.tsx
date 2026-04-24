@@ -38,12 +38,15 @@ export interface FormState {
   time: string; // "HH:mm"
   duration: number; // hours
   sqft?: string;
+  temperature?: string;
+  humidity?: string;
 }
 
 interface PredictionFormProps {
   state: FormState;
   setState: React.Dispatch<React.SetStateAction<FormState>>;
   onSubmit: () => void;
+  onReset?: () => void;
   loading: boolean;
 }
 
@@ -51,6 +54,7 @@ export function PredictionForm({
   state,
   setState,
   onSubmit,
+  onReset,
   loading,
 }: PredictionFormProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -77,7 +81,24 @@ export function PredictionForm({
         {/* ── Location: State → Circle → Area ── */}
         <LocationSelector
           value={state.location}
-          onChange={(location) => setState((s) => ({ ...s, location }))}
+          onChange={(location) => {
+            const updates: Partial<FormState> = { location };
+            // Auto-fill weather based on region to avoid manual entry
+            if (location.region) {
+              const weatherMap: Record<string, { t: string, h: string }> = {
+                "Northern": { t: "18", h: "45" },
+                "Western": { t: "32", h: "60" },
+                "Southern": { t: "35", h: "75" },
+                "Eastern": { t: "28", h: "80" },
+                "NorthEastern": { t: "22", h: "85" },
+              };
+              if (weatherMap[location.region]) {
+                updates.temperature = weatherMap[location.region].t;
+                updates.humidity = weatherMap[location.region].h;
+              }
+            }
+            setState((s) => ({ ...s, ...updates }));
+          }}
         />
 
         {/* ── Target Date ── */}
@@ -165,6 +186,34 @@ export function PredictionForm({
           </div>
         </div>
 
+        {/* ── Advanced Weather Parameters ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Temp (°C)
+            </Label>
+            <Input
+              type="number"
+              placeholder="e.g. 35"
+              value={state.temperature || ""}
+              onChange={(e) => setState((s) => ({ ...s, temperature: e.target.value }))}
+              className="bg-input/50 border-border hover:bg-input transition-smooth font-mono"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Humidity (%)
+            </Label>
+            <Input
+              type="number"
+              placeholder="e.g. 60"
+              value={state.humidity || ""}
+              onChange={(e) => setState((s) => ({ ...s, humidity: e.target.value }))}
+              className="bg-input/50 border-border hover:bg-input transition-smooth font-mono"
+            />
+          </div>
+        </div>
+
         {/* ── Building Size (optional) ── */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -182,23 +231,35 @@ export function PredictionForm({
           />
         </div>
 
-        <Button
-          onClick={onSubmit}
-          disabled={loading || (!state.location.region && !state.location.state)}
-          className="w-full bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold shadow-glow hover:opacity-95 transition-smooth h-11"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Computing forecast...
-            </>
-          ) : (
-            <>
-              <Zap className="mr-2 h-4 w-4" />
-              Generate Grid Forecast
-            </>
+        <div className="flex gap-2 pt-2">
+          {onReset && (
+            <Button
+              variant="outline"
+              onClick={onReset}
+              disabled={loading}
+              className="w-1/3 border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-smooth"
+            >
+              Reset
+            </Button>
           )}
-        </Button>
+          <Button
+            onClick={onSubmit}
+            disabled={loading || (!state.location.region && !state.location.state)}
+            className="flex-1 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold shadow-glow hover:opacity-95 transition-smooth h-10"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Computing...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Generate Forecast
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

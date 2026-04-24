@@ -26,20 +26,16 @@ export interface PredictionResponse {
 }
 
 export interface PredictionRequest {
-  stateRegion: string;
-  area: string;
-  /** ISO date string (YYYY-MM-DD) */
+  city: string;
   state?: string;
-
   date: string;
   time: string;
   duration: number;
   sqft?: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 const API_KEY = import.meta.env.VITE_API_KEY ?? "grid_secure_key_2026";
-
 
 export function resolveCityFromLocation(location: LocationValue): {
   city: string;
@@ -48,7 +44,7 @@ export function resolveCityFromLocation(location: LocationValue): {
   const { region, state, circle, area } = location;
 
   if (area && area.trim()) {
-    
+
     return { city: area.trim().toUpperCase(), state };
   }
 
@@ -64,7 +60,7 @@ export function resolveCityFromLocation(location: LocationValue): {
     };
   }
 
-  
+
   const STATE_CAPITALS: Record<string, string> = {
     "Andhra Pradesh": "Vijayawada",
     "Arunachal Pradesh": "Itanagar",
@@ -127,9 +123,9 @@ export async function fetchPredictionData(
 
   const res = await fetch(`${API_BASE}/predict`, {
     method: "POST",
-    headers: { 
+    headers: {
       "Content-Type": "application/json",
-      "X-API-Key": API_KEY 
+      "X-API-Key": API_KEY
     },
     body: JSON.stringify(reqBody),
   });
@@ -139,36 +135,11 @@ export async function fetchPredictionData(
     throw new Error(err.detail ?? `Prediction failed: HTTP ${res.status}`);
   }
 
-  const predictedDemandMW = series[series.length - 1].demand;
-  const confidencePercent = Math.round(88 + Math.random() * 9);
-
-  let recommendedAction = "Maintain current output";
-  let actionSeverity: PredictionResponse["actionSeverity"] = "normal";
-  if (peakDemand > 4500) {
-    recommendedAction = "Spin up auxiliary generators";
-    actionSeverity = "warning";
-  }
-  if (peakDemand > 4900) {
-    recommendedAction = "Activate peak load reserves immediately";
-    actionSeverity = "critical";
-  }
+  const data = await res.json();
 
   return {
-    stateRegion,
-    area,
-    predictedDemandMW,
-    confidencePercent,
-    peakTime: series[peakIdx]?.time ?? formatHour(startHour + duration / 2),
-    peakDemandMW: peakDemand,
-    recommendedAction,
-    actionSeverity,
-    series,
+    ...data,
+    stateRegion: data.region,
+    area: data.city,
   };
-}
-
-function formatHour(h: number): string {
-  const normalized = ((h % 24) + 24) % 24;
-  const hh = Math.floor(normalized);
-  const mm = Math.round((normalized - hh) * 60);
-  return `${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
 }

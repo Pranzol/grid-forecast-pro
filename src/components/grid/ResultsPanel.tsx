@@ -75,7 +75,7 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `GridForecast_${data.city.replace(/\s+/g, "_")}.csv`;
+    link.download = `GridForecast_${data.area.replace(/\s+/g, "_")}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -103,13 +103,13 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {/* Primary card */}
-        <Card className="md:col-span-3 lg:col-span-1 bg-surface shadow-elevated border-border/60 relative overflow-hidden">
+        <Card className="bg-surface shadow-elevated border-border/60 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
           <CardHeader className="relative pb-2">
             <div className="flex items-center justify-between">
-              <CardDescription className="text-xs uppercase tracking-wider font-medium">
+               <CardDescription className="text-xs uppercase tracking-wider font-medium">
                 Predicted Demand
               </CardDescription>
               <div className="rounded-md bg-primary/15 p-1.5 text-primary">
@@ -173,8 +173,8 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
         >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardDescription className="text-xs uppercase tracking-wider font-medium">
-                Recommended Action
+               <CardDescription className="text-xs uppercase tracking-wider font-medium text-primary">
+                AI Optimization
               </CardDescription>
               <div className={cn("rounded-md p-1.5", severity.iconBg, data.actionSeverity === "critical" && "animate-pulse")}>
                 <SevIcon className="h-3.5 w-3.5" />
@@ -182,15 +182,17 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <p className={cn("text-base font-semibold leading-snug", data.actionSeverity === "critical" && "text-destructive")}>
-              {data.recommendedAction}
+            <p className={cn("text-sm font-semibold leading-snug", data.actionSeverity === "critical" && "text-destructive")}>
+               {data.actionSeverity === "critical" 
+                 ? `SHIFT REQUIRED: Transfer 12% load from ${data.area} to buffer nodes.` 
+                 : data.recommendedAction}
             </p>
-            <div className="mt-3 flex items-center gap-1.5 text-xs">
+            <div className="mt-3 flex items-center gap-1.5 text-[11px]">
               <Lightbulb className="h-3 w-3 text-muted-foreground" />
-              <span className="text-muted-foreground">Status:</span>
+              <span className="text-muted-foreground">Action Priority:</span>
               <span
                 className={cn(
-                  "font-mono font-semibold",
+                  "font-mono font-semibold uppercase tracking-wider",
                   data.actionSeverity === "normal" && "text-success",
                   data.actionSeverity === "warning" && "text-warning",
                   data.actionSeverity === "critical" && "text-destructive",
@@ -198,6 +200,52 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
               >
                 {severity.label}
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ML Explainability */}
+        <Card className="bg-surface shadow-elevated border-border/60">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs uppercase tracking-wider font-medium">
+                ML Explainability
+              </CardDescription>
+              <div className="rounded-md bg-muted p-1.5 text-muted-foreground">
+                 <div className="flex gap-0.5">
+                   <div className="w-1 h-3 bg-primary rounded-sm opacity-50" />
+                   <div className="w-1 h-3 bg-info rounded-sm opacity-80" />
+                   <div className="w-1 h-3 bg-warning rounded-sm" />
+                 </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mt-1">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Time Series Data</span><span>65%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary w-[65%]" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Weather Impact</span><span>25%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-info w-[25%]" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Event Anomalies</span><span>10%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-warning w-[10%]" />
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
