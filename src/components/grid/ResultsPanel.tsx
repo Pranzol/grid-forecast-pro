@@ -6,7 +6,9 @@ import {
   Lightbulb,
   TrendingUp,
   Zap,
+  Download,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   CartesianGrid,
   Legend,
@@ -61,6 +63,22 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
 
   const severity = severityStyles[data.actionSeverity];
   const SevIcon = severity.icon;
+
+  const exportToCSV = () => {
+    if (!data) return;
+    const headers = ["Time", "Demand_MW", "Type"];
+    const rows = data.series.map(
+      (p) => `${p.time},${p.demand},${p.forecast ? "Forecast" : "Historical"}`
+    );
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `GridForecast_${data.city.replace(/\s+/g, "_")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Compute Y-axis domain with padding so the curve is visible
   const allDemands = data.series.map((p) => p.demand);
@@ -158,13 +176,13 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
               <CardDescription className="text-xs uppercase tracking-wider font-medium">
                 Recommended Action
               </CardDescription>
-              <div className={cn("rounded-md p-1.5", severity.iconBg)}>
+              <div className={cn("rounded-md p-1.5", severity.iconBg, data.actionSeverity === "critical" && "animate-pulse")}>
                 <SevIcon className="h-3.5 w-3.5" />
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-base font-semibold leading-snug">
+            <p className={cn("text-base font-semibold leading-snug", data.actionSeverity === "critical" && "text-destructive")}>
               {data.recommendedAction}
             </p>
             <div className="mt-3 flex items-center gap-1.5 text-xs">
@@ -205,6 +223,14 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
             <div className="hidden md:flex items-center gap-4 text-xs">
               <LegendDot color="hsl(var(--info))" label="Historical" />
               <LegendDot color="hsl(var(--primary))" label="Forecast" dotted />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] px-2 py-0 border-primary/20 hover:bg-primary/10 ml-2"
+                onClick={exportToCSV}
+              >
+                <Download className="h-3 w-3 mr-1" /> Export CSV
+              </Button>
             </div>
           </div>
         </CardHeader>

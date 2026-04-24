@@ -11,7 +11,7 @@ import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [form, setForm] = useState<FormState>({
-    location: { state: "", circle: "", area: "" },
+    location: { region: "", state: "", circle: "", division: "", area: "" },
     date: new Date(),
     time: "13:00",
     duration: 1,
@@ -20,10 +20,10 @@ const Index = () => {
   const [data, setData] = useState<PredictionResponse | null>(null);
 
   const handleSubmit = async () => {
-    if (!form.location.state) {
+    if (!form.location.region && !form.location.state) {
       toast({
-        title: "Please select a state",
-        description: "Choose a state before generating a forecast.",
+        title: "Please select a location",
+        description: "Choose a Region or State before generating a forecast.",
         variant: "destructive",
       });
       return;
@@ -44,7 +44,8 @@ const Index = () => {
       const locationLabel =
         form.location.area ||
         form.location.circle ||
-        form.location.state;
+        form.location.state ||
+        form.location.region;
 
       toast({
         title: "Forecast generated",

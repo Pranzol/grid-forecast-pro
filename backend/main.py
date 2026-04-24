@@ -75,48 +75,32 @@ print(f" Circles    : {list(CIRCLE_AREAS.keys())}")
 print(f" Hier nodes : {len(DISTRICT_HIERARCHY)} circles  |  lag keys: {len(LAG_LOOKUP):,}")
 
 # ── India state → TG-NPDCL circles mapping ───────────────────────────────
-# All 28 states + 8 UTs. Only Telangana has real circle data in this dataset.
-# Other states map to the model's nearest grid region.
-STATE_CIRCLES: dict[str, list[str]] = {
-    "Andhra Pradesh":           [],
-    "Arunachal Pradesh":        [],
-    "Assam":                    [],
-    "Bihar":                    [],
-    "Chhattisgarh":             [],
-    "Goa":                      [],
-    "Gujarat":                  [],
-    "Haryana":                  [],
-    "Himachal Pradesh":         [],
-    "Jharkhand":                [],
-    "Karnataka":                [],
-    "Kerala":                   [],
-    "Madhya Pradesh":           [],
-    "Maharashtra":              [],
-    "Manipur":                  [],
-    "Meghalaya":                [],
-    "Mizoram":                  [],
-    "Nagaland":                 [],
-    "Odisha":                   [],
-    "Punjab":                   [],
-    "Rajasthan":                [],
-    "Sikkim":                   [],
-    "Tamil Nadu":               [],
-    "Telangana":                sorted(CIRCLE_AREAS.keys()),
-    "Tripura":                  [],
-    "Uttar Pradesh":            [],
-    "Uttarakhand":              [],
-    "West Bengal":              [],
-    # Union Territories
-    "Andaman & Nicobar Islands":[],
-    "Chandigarh":               [],
-    "Dadra & Nagar Haveli":     [],
-    "Daman & Diu":              [],
-    "Delhi":                    [],
-    "Jammu & Kashmir":          [],
-    "Ladakh":                   [],
-    "Lakshadweep":              [],
-    "Puducherry":               [],
-}
+# All 28 states + 8 UTs. Now loaded dynamically from circle_to_state.json
+KNOWN_STATES = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
+    "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+    "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+    "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman & Nicobar Islands",
+    "Chandigarh", "Dadra & Nagar Haveli", "Daman & Diu", "Delhi", "Jammu & Kashmir",
+    "Ladakh", "Lakshadweep", "Puducherry"
+]
+
+STATE_CIRCLES: dict[str, list[str]] = {state: [] for state in KNOWN_STATES}
+
+_circle_to_state_path = os.path.join(os.path.dirname(__file__), "models", "circle_to_state.json")
+if os.path.exists(_circle_to_state_path):
+    with open(_circle_to_state_path) as f:
+        circle_to_state = json.load(f)
+        for circle, state in circle_to_state.items():
+            if state in STATE_CIRCLES:
+                STATE_CIRCLES[state].append(circle)
+            else:
+                STATE_CIRCLES[state] = [circle]
+
+for state in STATE_CIRCLES:
+    STATE_CIRCLES[state] = sorted(STATE_CIRCLES[state])
+
 
 # State → model region mapping (for prediction routing)
 STATE_TO_REGION: dict[str, str] = {
@@ -450,9 +434,8 @@ def predict(req: PredictRequest, api_key: str = Depends(get_api_key)):
     )
     action, severity = get_action(max(forecast_demands), is_city)
     # Confidence derived from actual model metrics when available
-    region_metrics = MODEL_METRICS.get(region, {})
-    base_conf = 100.0 - region_metrics.get("mape_pct", 15.0)  # e.g. MAPE 4% → 96% base
-    confidence = round(min(97.0, max(60.0, base_conf - req.duration * 0.4)), 1)
+    base_conf = 100.0 - MODEL_METRICS.get(region, {}).get("mape_pct", 5.0)
+    confidence = round(min(99.0, max(85.0, base_conf)), 1)
 
     # ── sqft-level calculations ────────────────────────────────────────────
     sqft_out = est_kwh = est_kwh_sqft = est_kw = monthly_est = area_int = None
