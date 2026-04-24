@@ -213,7 +213,7 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
               </div>
               <div>
                 <CardTitle className="text-base font-semibold tracking-tight">
-                  Demand Curve — {data.city}
+                  Demand Curve — {data.area}, {data.stateRegion}
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Historical load (solid) & forecast trajectory (dotted)
