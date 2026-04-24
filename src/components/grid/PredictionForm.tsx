@@ -146,8 +146,17 @@ export function PredictionForm({
             className="py-1"
           />
           <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-            <span>1h</span>
+            <span>2h</span>
+            <span>4h</span>
+            <span>6h</span>
+            <span>8h</span>
+            <span>10h</span>
             <span>12h</span>
+            <span>14h</span>
+            <span>16h</span>
+            <span>18h</span>
+            <span>20h</span>
+            <span>22h</span>
             <span>24h</span>
           </div>
         </div>
