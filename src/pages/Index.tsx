@@ -11,8 +11,8 @@ import { toast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [form, setForm] = useState<FormState>({
-    stateRegion: "Karnataka",
-    area: "Shivajinagara",
+    stateRegion: "Telangana",
+    area: "Warangal",
     date: new Date(),
     time: "13:00",
     duration: 1,
