@@ -51,13 +51,13 @@ const Index = () => {
         <div className="container flex h-16 items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="rounded-lg bg-gradient-to-br from-primary to-primary-glow p-2 shadow-glow">
-                <Activity className="h-5 w-5 text-primary-foreground" />
+              <div className="rounded-lg bg-gradient-to-br from-primary/20 to-primary-glow/20 p-1.5 shadow-glow flex items-center justify-center">
+                <img src="/logo.png" alt="EnerPlot Logo" className="h-7 w-7 object-contain" />
               </div>
             </div>
             <div>
               <h1 className="text-base font-bold tracking-tight leading-none">
-                GridForecast <span className="text-gradient-primary">Pro</span>
+                Ener<span className="text-gradient-primary">Plot</span>
               </h1>
               <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
                 Short-Term Demand Prediction System
@@ -103,7 +103,7 @@ const Index = () => {
 
       <footer className="border-t border-border/60 mt-12">
         <div className="container px-4 md:px-6 py-4 flex items-center justify-between text-[11px] font-mono text-muted-foreground">
-          <span>© GridForecast Pro · Operator Console v1.0</span>
+          <span>© EnerPlot · Operator Console v1.0</span>
           <span className="hidden sm:inline">Secure connection · TLS 1.3</span>
         </div>
       </footer>
