@@ -26,12 +26,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { LocationSelector } from "./LocationSelector";
+import {
+  LocationSelector,
+  type LocationValue,
+} from "./LocationSelector";
 import { TimeInput } from "./TimeInput";
 
 export interface FormState {
-  stateRegion: string;
-  area: string;
+  location: LocationValue;
   date: Date;
   time: string; // "HH:mm"
   duration: number; // hours
@@ -72,18 +74,13 @@ export function PredictionForm({
       </CardHeader>
 
       <CardContent className="space-y-5 pt-6">
-        <div className="space-y-2">
-          <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Service Region
-          </Label>
-          <LocationSelector
-            stateValue={state.stateRegion}
-            areaValue={state.area}
-            onStateChange={(stateRegion) => setState((s) => ({ ...s, stateRegion, area: "" }))}
-            onAreaChange={(area) => setState((s) => ({ ...s, area }))}
-          />
-        </div>
+        {/* ── Location: State → Circle → Area ── */}
+        <LocationSelector
+          value={state.location}
+          onChange={(location) => setState((s) => ({ ...s, location }))}
+        />
 
+        {/* ── Target Date ── */}
         <div className="space-y-2">
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Target Date
@@ -121,6 +118,7 @@ export function PredictionForm({
           </Popover>
         </div>
 
+        {/* ── Forecast Time ── */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <Clock className="h-3 w-3" /> Forecast Time
@@ -131,6 +129,7 @@ export function PredictionForm({
           />
         </div>
 
+        {/* ── Forecast Window (slider) ── */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -166,14 +165,18 @@ export function PredictionForm({
           </div>
         </div>
 
+        {/* ── Building Size (optional) ── */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Building Size (Sqft) <span className="text-[10px] text-muted-foreground/70 normal-case ml-1">(Optional)</span>
+            Building Size (Sqft){" "}
+            <span className="text-[10px] text-muted-foreground/70 normal-case ml-1">
+              (Optional)
+            </span>
           </Label>
-          <Input 
-            type="number" 
-            placeholder="e.g. 5000" 
-            value={state.sqft || ""} 
+          <Input
+            type="number"
+            placeholder="e.g. 5000"
+            value={state.sqft || ""}
             onChange={(e) => setState((s) => ({ ...s, sqft: e.target.value }))}
             className="bg-input/50 border-border hover:bg-input transition-smooth font-mono"
           />
@@ -181,7 +184,7 @@ export function PredictionForm({
 
         <Button
           onClick={onSubmit}
-          disabled={loading}
+          disabled={loading || !state.location.state}
           className="w-full bg-gradient-to-r from-primary to-primary-glow text-primary-foreground font-semibold shadow-glow hover:opacity-95 transition-smooth h-11"
         >
           {loading ? (

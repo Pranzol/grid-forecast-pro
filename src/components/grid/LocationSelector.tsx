@@ -1,230 +1,249 @@
 import * as React from "react";
-import { Check, ChevronsUpDown, MapPin, Navigation } from "lucide-react";
+import { Check, ChevronDown, MapPin, Layers, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  ALL_STATES,
+  TELANGANA_CIRCLES,
+  STATES_WITH_AREAS,
+  formatCircleName,
+  formatAreaName,
+} from "@/lib/locationData";
+import { fetchStateAreas } from "@/lib/fetchLocationData";
 
-// Dataset mapping States to Areas (including districts and local areas)
-const STATE_AREAS_DATA: Record<string, string[]> = {
-  "Andaman and Nicobar Islands": ["Port Blair", "Nicobar", "North and Middle Andaman", "South Andaman"],
-  "Andhra Pradesh": [
-    "Anantapur", "Chittoor", "East Godavari", "Guntur", "Krishna", "Kurnool",
-    "Nellore", "Prakasam", "Srikakulam", "Visakhapatnam", "Vizianagaram", "West Godavari"
-  ],
-  "Arunachal Pradesh": ["Itanagar", "Tawang", "Ziro", "Pasighat", "Along", "Tezu"],
-  "Assam": ["Guwahati", "Dibrugarh", "Silchar", "Jorhat", "Nagaon", "Tinsukia"],
-  "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga"],
-  "Chandigarh": ["Chandigarh"],
-  "Chhattisgarh": ["Raipur", "Bhilai", "Bilaspur", "Korba", "Durg", "Rajnandgaon"],
-  "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Diu", "Silvassa"],
-  "Delhi": [
-    "Central Delhi", "East Delhi", "New Delhi", "North Delhi", "North East Delhi",
-    "North West Delhi", "Shahdara", "South Delhi", "South East Delhi",
-    "South West Delhi", "West Delhi"
-  ],
-  "Goa": ["Panaji", "Margao", "Vasco da Gama", "Mapusa", "Ponda"],
-  "Gujarat": [
-    "Ahmedabad", "Amreli", "Anand", "Banaskantha", "Bharuch", "Bhavnagar",
-    "Gandhinagar", "Jamnagar", "Junagadh", "Kutch", "Mehsana", "Morbi",
-    "Narmada", "Navsari", "Panchmahal", "Patan", "Porbandar", "Rajkot",
-    "Sabarkantha", "Surat", "Surendranagar", "Vadodara", "Valsad"
-  ],
-  "Haryana": ["Gurugram", "Faridabad", "Panipat", "Ambala", "Hisar", "Rohtak"],
-  "Himachal Pradesh": ["Shimla", "Manali", "Dharamshala", "Solan", "Mandi", "Hamirpur"],
-  "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla", "Kathua", "Udhampur"],
-  "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Deoghar", "Hazaribagh"],
-  "Karnataka": [
-    "Bagalkot", "Ballari", "Belagavi", "Bengaluru Rural", "Bengaluru Urban",
-    "Bidar", "Chamarajanagar", "Chikkaballapur", "Chikkamagaluru", "Chitradurga",
-    "Dakshina Kannada", "Davanagere", "Dharwad", "Gadag", "Hassan", "Haveri",
-    "Hubballi", "Kalaburagi", "Kodagu", "Kolar", "Koppal", "Mandya", "Mangaluru",
-    "Mysuru", "Raichur", "Ramanagara", "Shivamogga", "Shivajinagara", "Tumakuru",
-    "Udupi", "Uttara Kannada", "Vijayapura", "Yadgir"
-  ],
-  "Kerala": [
-    "Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam",
-    "Kottayam", "Kozhikode", "Malappuram", "Palakkad", "Pathanamthitta",
-    "Thiruvananthapuram", "Thrissur", "Wayanad"
-  ],
-  "Ladakh": ["Leh", "Kargil"],
-  "Lakshadweep": ["Kavaratti"],
-  "Madhya Pradesh": ["Indore", "Bhopal", "Gwalior", "Jabalpur", "Ujjain", "Sagar"],
-  "Maharashtra": [
-    "Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara",
-    "Buldhana", "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli",
-    "Jalgaon", "Jalna", "Kolhapur", "Latur", "Mumbai City", "Mumbai Suburban",
-    "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad", "Palghar",
-    "Parbhani", "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg",
-    "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"
-  ],
-  "Manipur": ["Imphal", "Thoubal", "Churachandpur"],
-  "Meghalaya": ["Shillong", "Tura", "Jowai"],
-  "Mizoram": ["Aizawl", "Lunglei", "Champhai"],
-  "Nagaland": ["Kohima", "Dimapur", "Mokokchung"],
-  "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur", "Puri"],
-  "Puducherry": ["Puducherry", "Karaikal", "Mahe", "Yanam"],
-  "Punjab": ["Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda", "Mohali"],
-  "Rajasthan": ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Ajmer", "Bikaner"],
-  "Sikkim": ["Gangtok", "Namchi", "Geyzing"],
-  "Tamil Nadu": [
-    "Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri",
-    "Dindigul", "Erode", "Kallakurichi", "Kancheepuram", "Kanyakumari", "Karur",
-    "Krishnagiri", "Madurai", "Mayiladuthurai", "Nagapattinam", "Namakkal",
-    "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet",
-    "Salem", "Sivaganga", "Tenkasi", "Thanjavur", "Theni", "Thoothukudi",
-    "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur",
-    "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"
-  ],
-  "Telangana": [
-    "Adilabad", "Asifabad", "Bellampally", "Bhadradri Kothagudem", "Bhupalpally",
-    "Godavarikhani", "Hanumakonda", "Husnabad", "Hyderabad", "Jagtial",
-    "Jangaon", "Jayashankar Bhupalpally", "Jogulamba Gadwal", "Kamareddy",
-    "Karimnagar", "Khammam", "Korutla", "Kothagudem", "Kumuram Bheem Asifabad",
-    "Mahabubabad", "Mahabubnagar", "Mancherial", "Mandamarri", "Medak",
-    "Medchal-Malkajgiri", "Metpally", "Mulugu", "Nagarkurnool", "Nalgonda",
-    "Narayanpet", "Nirmal", "Nizamabad", "Paloncha", "Peddapalli",
-    "Rajanna Sircilla", "Ramagundam", "Rangareddy", "Sangareddy", "Sathupally",
-    "Siddipet", "Sircilla", "Suryapet", "Vemulawada", "Vikarabad", "Wanaparthy",
-    "Warangal", "Yadadri Bhuvanagiri", "Yellandu"
-  ],
-  "Tripura": ["Agartala", "Udaipur", "Dharmanagar"],
-  "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi", "Agra", "Noida", "Prayagraj", "Ghaziabad", "Meerut"],
-  "Uttarakhand": ["Dehradun", "Haridwar", "Rishikesh", "Haldwani", "Roorkee", "Rudrapur"],
-  "West Bengal": ["Kolkata", "Darjeeling", "Siliguri", "Asansol", "Durgapur", "Howrah"]
-};
-
-// Alphabetical sort for States
-export const STATES = Object.keys(STATE_AREAS_DATA).sort();
-
-interface LocationSelectorProps {
-  stateValue: string;
-  areaValue: string;
-  onStateChange: (state: string) => void;
-  onAreaChange: (area: string) => void;
+export interface LocationValue {
+  state: string;
+  circle: string;   // district/circle (only for Telangana)
+  area: string;     // specific area
 }
 
-export function LocationSelector({
-  stateValue,
-  areaValue,
-  onStateChange,
-  onAreaChange,
-}: LocationSelectorProps) {
-  const [openState, setOpenState] = React.useState(false);
-  const [openArea, setOpenArea] = React.useState(false);
+interface LocationSelectorProps {
+  value: LocationValue;
+  onChange: (loc: LocationValue) => void;
+}
 
-  // Ensure areas are sorted alphabetically
-  const areas = stateValue ? [...STATE_AREAS_DATA[stateValue]].sort() : [];
+// ── Minimal styled select ────────────────────────────────────────────────────
+interface SelectProps {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  icon?: React.ReactNode;
+}
+
+function StyledSelect({
+  id,
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  options,
+  icon,
+}: SelectProps) {
+  return (
+    <div className="relative">
+      {icon && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary pointer-events-none z-10">
+          {icon}
+        </span>
+      )}
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={cn(
+          "w-full appearance-none rounded-md border border-border bg-input/50 text-sm",
+          "px-3 py-2.5 pr-8 transition-all duration-200",
+          "hover:bg-input focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60",
+          "disabled:opacity-40 disabled:cursor-not-allowed",
+          icon ? "pl-9" : "pl-3",
+          !value && "text-muted-foreground"
+        )}
+      >
+        <option value="" disabled>
+          {placeholder}
+        </option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
+export function LocationSelector({ value, onChange }: LocationSelectorProps) {
+  const [circles, setCircles] = React.useState<string[]>([]);
+  const [areas, setAreas] = React.useState<string[]>([]);
+  const [loadingAreas, setLoadingAreas] = React.useState(false);
+  const [circleAreaMap, setCircleAreaMap] = React.useState<
+    Record<string, string[]>
+  >({});
+
+  // ── State options (alphabetical) ──────────────────────────────────────────
+  const stateOptions = ALL_STATES.map((s) => ({ value: s, label: s }));
+
+  // ── When state changes, load circles ─────────────────────────────────────
+  const handleStateChange = React.useCallback(
+    async (state: string) => {
+      // Reset downstream selections
+      onChange({ state, circle: "", area: "" });
+      setCircles([]);
+      setAreas([]);
+      setCircleAreaMap({});
+
+      if (!state) return;
+
+      if (STATES_WITH_AREAS.has(state)) {
+        // State has granular data → fetch from backend
+        setLoadingAreas(true);
+        try {
+          const data = await fetchStateAreas(state);
+          const circleList = Object.keys(data.circles).sort();
+          setCircles(circleList);
+          setCircleAreaMap(data.circles);
+        } catch {
+          // Fall back to static Telangana circles
+          if (state === "Telangana") {
+            const staticCircles = [...TELANGANA_CIRCLES].sort();
+            setCircles(staticCircles);
+          }
+        } finally {
+          setLoadingAreas(false);
+        }
+      }
+      // For states without granular data, circles/areas stay empty
+      // → prediction uses state's grid region
+    },
+    [onChange]
+  );
+
+  // ── When circle changes, update area list ─────────────────────────────────
+  const handleCircleChange = React.useCallback(
+    (circle: string) => {
+      onChange({ ...value, circle, area: "" });
+      const circleAreas = (circleAreaMap[circle] ?? []).sort();
+      setAreas(circleAreas);
+    },
+    [value, onChange, circleAreaMap]
+  );
+
+  // ── When area changes ─────────────────────────────────────────────────────
+  const handleAreaChange = React.useCallback(
+    (area: string) => {
+      onChange({ ...value, area });
+    },
+    [value, onChange]
+  );
+
+  const circleOptions = circles.map((c) => ({
+    value: c,
+    label: formatCircleName(c),
+  }));
+
+  const areaOptions = areas.map((a) => ({
+    value: a,
+    label: formatAreaName(a),
+  }));
+
+  const hasCircles = circles.length > 0;
+  const hasAreas = areas.length > 0;
+  const stateHasGranularData = value.state
+    ? STATES_WITH_AREAS.has(value.state)
+    : false;
 
   return (
-    <div className="flex flex-col gap-3">
-      <Popover open={openState} onOpenChange={setOpenState}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={openState}
-            className="w-full justify-between bg-input/50 border-border hover:bg-input transition-smooth"
-          >
-            <span className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-primary" />
-              {stateValue || "Select state..."}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 bg-popover border-border" align="start">
-          <Command>
-            <CommandInput placeholder="Search state..." className="h-10" />
-            <CommandList>
-              <CommandEmpty>No state found.</CommandEmpty>
-              <CommandGroup>
-                {STATES.map((s) => (
-                  <CommandItem
-                    key={s}
-                    value={s}
-                    onSelect={(currentValue) => {
-                      const matched = STATES.find(
-                        (st) => st.toLowerCase() === currentValue.toLowerCase(),
-                      );
-                      onStateChange(matched ?? s);
-                      setOpenState(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        stateValue === s ? "opacity-100 text-primary" : "opacity-0",
-                      )}
-                    />
-                    {s}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+    <div className="space-y-3">
+      {/* ── State ── */}
+      <div className="space-y-1.5">
+        <label
+          htmlFor="select-state"
+          className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+        >
+          <MapPin className="h-3 w-3" />
+          State / UT
+        </label>
+        <StyledSelect
+          id="select-state"
+          value={value.state}
+          onChange={handleStateChange}
+          placeholder="Select a state..."
+          options={stateOptions}
+          icon={<MapPin className="h-3.5 w-3.5" />}
+        />
+      </div>
 
-      <Popover open={openArea} onOpenChange={setOpenArea}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={openArea}
-            disabled={!stateValue}
-            className="w-full justify-between bg-input/50 border-border hover:bg-input transition-smooth"
+      {/* ── Circle / District (only for states with data) ── */}
+      {value.state && stateHasGranularData && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="select-circle"
+            className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
           >
-            <span className="flex items-center gap-2">
-              <Navigation className="h-4 w-4 text-primary" />
-              {areaValue || "Select area..."}
+            <Layers className="h-3 w-3" />
+            Circle / District
+            {loadingAreas && (
+              <span className="ml-1 text-[10px] text-primary animate-pulse font-mono">
+                Loading…
+              </span>
+            )}
+          </label>
+          <StyledSelect
+            id="select-circle"
+            value={value.circle}
+            onChange={handleCircleChange}
+            disabled={!hasCircles || loadingAreas}
+            placeholder={
+              loadingAreas ? "Loading circles..." : "Select a circle..."
+            }
+            options={circleOptions}
+            icon={<Layers className="h-3.5 w-3.5" />}
+          />
+        </div>
+      )}
+
+      {/* ── Area (only when circle selected and has areas) ── */}
+      {value.circle && hasAreas && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="select-area"
+            className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+          >
+            <Navigation className="h-3 w-3" />
+            Area
+            <span className="ml-auto text-[10px] font-mono text-muted-foreground/60">
+              {areas.length.toLocaleString()} areas
             </span>
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0 bg-popover border-border" align="start">
-          <Command>
-            <CommandInput placeholder="Search area..." className="h-10" />
-            <CommandList>
-              <CommandEmpty>No area found.</CommandEmpty>
-              <CommandGroup>
-                {areas.map((a) => (
-                  <CommandItem
-                    key={a}
-                    value={a}
-                    onSelect={(currentValue) => {
-                      const matched = areas.find(
-                        (ar) => ar.toLowerCase() === currentValue.toLowerCase(),
-                      );
-                      onAreaChange(matched ?? a);
-                      setOpenArea(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        areaValue === a ? "opacity-100 text-primary" : "opacity-0",
-                      )}
-                    />
-                    {a}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+          </label>
+          <StyledSelect
+            id="select-area"
+            value={value.area}
+            onChange={handleAreaChange}
+            disabled={!hasAreas}
+            placeholder="Select an area..."
+            options={areaOptions}
+            icon={<Navigation className="h-3.5 w-3.5" />}
+          />
+        </div>
+      )}
+
+      {/* ── Info badge for states without granular data ── */}
+      {value.state && !stateHasGranularData && (
+        <div className="flex items-start gap-2 rounded-md bg-primary/8 border border-primary/20 px-3 py-2">
+          <Check className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Forecasting{" "}
+            <span className="text-foreground font-medium">{value.state}</span>{" "}
+            using regional grid model. Area-level data available for{" "}
+            <span className="text-primary font-medium">Telangana</span> only.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
