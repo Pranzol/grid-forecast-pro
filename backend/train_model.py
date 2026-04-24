@@ -270,17 +270,35 @@ for region in REGION_COLS:
 print("-" * 70)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# [5/6]  TG-NPDCL DATA CLEANING + AREA LOOKUP + DISTRICT HIERARCHY
+# [5/6]  NATIONWIDE DATA CLEANING + AREA LOOKUP + DISTRICT HIERARCHY
 # ═══════════════════════════════════════════════════════════════════════════
-print("\n[5/6]  TG-NPDCL data cleaning + district hierarchy...")
+print("\n[5/6]  Nationwide data cleaning + district hierarchy...")
 
-tg_raw = pd.read_csv("data/TG-NPDCL_consumption_detail_commercial_JANUARY-2025.csv")
+from circle_to_state import CIRCLE_TO_STATE
+import glob
+
+all_files = glob.glob("data/*.csv")
+data_files = [f for f in all_files if "consumption" in f.lower() or "electricity" in f.lower() or "energy" in f.lower()]
+df_list = []
+for f in data_files:
+    try:
+        df_list.append(pd.read_csv(f))
+    except Exception as e:
+        print(f"   Skipping {f}: {e}")
+
+if not df_list:
+    tg_raw = pd.read_csv("data/TG-NPDCL_consumption_detail_commercial_JANUARY-2025.csv")
+else:
+    tg_raw = pd.concat(df_list, ignore_index=True)
+    tg_raw = tg_raw.dropna(subset=["Circle"])
+
 print(f"   Raw rows: {len(tg_raw):,}")
 
-# ---- TG-NPDCL Data Cleaning ----
+# ---- Nationwide Data Cleaning ----
 # 1. Standardise string columns
 for col in ["Circle","Division","SubDivision","Section","Area","CatDesc"]:
-    tg_raw[col] = tg_raw[col].astype(str).str.strip().str.upper()
+    if col in tg_raw.columns:
+        tg_raw[col] = tg_raw[col].astype(str).str.strip().str.upper()
 
 # 2. Remove rows with zero TotServices (no consumers = no valid intensity)
 before = len(tg_raw)
@@ -308,12 +326,31 @@ area_df["load_per_service_kw"] = area_df["total_load"]   / area_df["total_servic
 area_df["kwh_per_sqft_month"]  = area_df["units_per_service"]  / 500
 area_df["kw_per_sqft"]         = area_df["load_per_service_kw"]/ 500
 area_df["kwh_per_sqft_hour"]   = area_df["kwh_per_sqft_month"] / 730
-area_df["region"]              = "Southern"
+
+area_df["state"]  = area_df["Circle"].map(CIRCLE_TO_STATE).fillna("Telangana")
+
+STATE_TO_REGION = {
+    "Andhra Pradesh": "Southern", "Arunachal Pradesh": "NorthEastern", "Assam": "NorthEastern",
+    "Bihar": "Eastern", "Chhattisgarh": "Western", "Goa": "Western", "Gujarat": "Western",
+    "Haryana": "Northern", "Himachal Pradesh": "Northern", "Jharkhand": "Eastern",
+    "Karnataka": "Southern", "Kerala": "Southern", "Madhya Pradesh": "Western",
+    "Maharashtra": "Western", "Manipur": "NorthEastern", "Meghalaya": "NorthEastern",
+    "Mizoram": "NorthEastern", "Nagaland": "NorthEastern", "Odisha": "Eastern",
+    "Punjab": "Northern", "Rajasthan": "Northern", "Sikkim": "NorthEastern",
+    "Tamil Nadu": "Southern", "Telangana": "Southern", "Tripura": "NorthEastern",
+    "Uttar Pradesh": "Northern", "Uttarakhand": "Northern", "West Bengal": "Eastern",
+    "Delhi": "Northern", "Jammu & Kashmir": "Northern", "Ladakh": "Northern",
+    "Chandigarh": "Northern", "Puducherry": "Southern", "Andaman & Nicobar Islands": "Southern",
+    "Dadra & Nagar Haveli": "Western", "Daman & Diu": "Western"
+}
+
+area_df["region"] = area_df["state"].map(STATE_TO_REGION).fillna("Southern")
 
 print(f"   Clean areas: {len(area_df):,}  |  Circles: {area_df['Circle'].nunique()}")
 
 # ---- Build Area Lookup (for prediction) ----
 area_lookup = {}
+circle_to_state_export = {}
 for _, row in area_df.iterrows():
     key = row["Area"].strip().upper()
     area_lookup[key] = {
@@ -321,13 +358,18 @@ for _, row in area_df.iterrows():
         "division":           row["Division"],
         "subdivision":        row["SubDivision"],
         "section":            row["Section"],
-        "region":             "Southern",
+        "region":             row["region"],
         "kwh_per_sqft_month": round(float(row["kwh_per_sqft_month"]),  6),
         "kw_per_sqft":        round(float(row["kw_per_sqft"]),         6),
         "kwh_per_sqft_hour":  round(float(row["kwh_per_sqft_hour"]),   8),
         "total_load_kw":      round(float(row["total_load"]),          3),
         "total_services":     int(row["total_services"]),
     }
+    if row["Circle"] not in circle_to_state_export:
+        circle_to_state_export[row["Circle"]] = row["state"]
+        
+with open("models/circle_to_state.json", "w", encoding="utf-8") as f:
+    json.dump(circle_to_state_export, f)
 with open("models/area_lookup.json", "w", encoding="utf-8") as f:
     json.dump(area_lookup, f)
 print(f"   Saved {len(area_lookup)} areas -> models/area_lookup.json")
