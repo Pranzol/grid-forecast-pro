@@ -6,13 +6,38 @@ from typing import Optional
 import numpy as np, joblib, json, os
 
 # ── Load artifacts ─────────────────────────────────────────────────────────
-model          = joblib.load("models/demand_model.pkl")
+# Per-region models + StandardScalers (trained on normalized demand target)
+# This fixes the scale bias: National (160K MW) no longer drowns out
+# NorthEastern (2K MW). Each region has its own model and inverse-scaler.
+KNOWN_REGIONS_LIST = ["Eastern","National","NorthEastern","Northern","Southern","Western"]
+
+REGION_MODELS  = {}
+REGION_SCALERS = {}
+for _r in KNOWN_REGIONS_LIST:
+    _mp = f"models/demand_model_{_r}.pkl"
+    _sp = f"models/scaler_{_r}.pkl"
+    if os.path.exists(_mp) and os.path.exists(_sp):
+        REGION_MODELS[_r]  = joblib.load(_mp)
+        REGION_SCALERS[_r] = joblib.load(_sp)
+
+# Fallback: legacy single model (if per-region models not yet trained)
+_legacy_model = None
+if not REGION_MODELS and os.path.exists("models/demand_model.pkl"):
+    _legacy_model  = joblib.load("models/demand_model.pkl")
+
 region_encoder = joblib.load("models/region_encoder.pkl")
 feature_list   = joblib.load("models/feature_list.pkl")
+
 with open("models/area_lookup.json") as f:
     AREA_LOOKUP = json.load(f)
 
-# ── Load circle→area dataset (from TG-NPDCL CSV) ──────────────────────────
+_metrics_path = os.path.join(os.path.dirname(__file__), "models", "metrics.json")
+MODEL_METRICS: dict = {}
+if os.path.exists(_metrics_path):
+    with open(_metrics_path) as f:
+        MODEL_METRICS = json.load(f)
+
+# ── Load circle→area dataset (flat, backward compat) ──────────────────────
 _circle_areas_path = os.path.join(os.path.dirname(__file__), "circle_areas.json")
 if os.path.exists(_circle_areas_path):
     with open(_circle_areas_path) as f:
@@ -20,10 +45,33 @@ if os.path.exists(_circle_areas_path):
 else:
     CIRCLE_AREAS = {}
 
-KNOWN_REGIONS = list(region_encoder.classes_)
-print(f" Regions : {KNOWN_REGIONS}")
-print(f" Areas   : {len(AREA_LOOKUP):,} Telangana areas loaded")
-print(f" Circles : {list(CIRCLE_AREAS.keys())}")
+# ── Load full district hierarchy (Circle→Division→SubDiv→Section→areas) ──
+_hier_path = os.path.join(os.path.dirname(__file__), "models", "district_hierarchy.json")
+if os.path.exists(_hier_path):
+    with open(_hier_path, encoding="utf-8") as f:
+        DISTRICT_HIERARCHY: dict = json.load(f)
+else:
+    DISTRICT_HIERARCHY = {}
+
+# ── Load lag lookup (historical avg demand by region/hour/dow/month) ───────
+import pandas as pd
+_lag_path = os.path.join(os.path.dirname(__file__), "models", "lag_lookup.csv")
+if os.path.exists(_lag_path):
+    _lag_df = pd.read_csv(_lag_path)
+    LAG_LOOKUP: dict = {}  # (region, hour, dow, month) -> avg_demand_mw
+    for _, row in _lag_df.iterrows():
+        key = (row["region"], int(row["hour"]), int(row["day_of_week"]), int(row["month"]))
+        LAG_LOOKUP[key] = float(row["demand_mw"])
+else:
+    LAG_LOOKUP = {}
+
+KNOWN_REGIONS = KNOWN_REGIONS_LIST
+using_per_region = bool(REGION_MODELS)
+print(f" Mode       : {'per-region v4 (lag+rolling)' if using_per_region else 'legacy single model'}")
+print(f" Regions    : {KNOWN_REGIONS}")
+print(f" Areas      : {len(AREA_LOOKUP):,} Telangana areas loaded")
+print(f" Circles    : {list(CIRCLE_AREAS.keys())}")
+print(f" Hier nodes : {len(DISTRICT_HIERARCHY)} circles  |  lag keys: {len(LAG_LOOKUP):,}")
 
 # ── India state → TG-NPDCL circles mapping ───────────────────────────────
 # All 28 states + 8 UTs. Only Telangana has real circle data in this dataset.
@@ -214,13 +262,53 @@ class PredictResponse(BaseModel):
     areaIntensity: Optional[str]         = None   # Low / Medium / High
 
 # ── Helpers ────────────────────────────────────────────────────────────────
-def make_features(region_enc, hour, dow, month):
-    row = {
-        "region_enc": region_enc, "hour": hour,
-        "day_of_week": dow,       "month": month,
-        "is_weekend": int(dow>=5),"season": SEASON_MAP[month],
-    }
-    return np.array([[row[f] for f in feature_list]])
+def _lag_avg(region: str, hour: int, dow: int, month: int) -> float:
+    """Return historical avg demand for this region/hour/dow/month combination.
+    Used to substitute lag features at inference time (we have no live history)."""
+    return LAG_LOOKUP.get((region, hour, dow, month),
+           LAG_LOOKUP.get((region, hour, 0, month), 0.0))
+
+def make_features(region: str, hour: int, dow: int, month: int,
+                  year: int = 2025, doy: int = 180,
+                  region_enc_compat=None):
+    """Build full feature vector for v4 (lag + rolling + cyclical) models.
+    Falls back to the old 11-feature set if per-region models are not loaded."""
+    season = SEASON_MAP[month]
+    hour_sin  = np.sin(2*np.pi*hour /24);  hour_cos  = np.cos(2*np.pi*hour /24)
+    dow_sin   = np.sin(2*np.pi*dow  /7);   dow_cos   = np.cos(2*np.pi*dow  /7)
+    month_sin = np.sin(2*np.pi*month/12);  month_cos = np.cos(2*np.pi*month/12)
+    doy_sin   = np.sin(2*np.pi*doy  /365); doy_cos   = np.cos(2*np.pi*doy  /365)
+
+    if REGION_MODELS and region in REGION_MODELS:
+        # v4 feature set (22 features incl. lag/rolling)
+        lag24  = _lag_avg(region, hour, dow, month)
+        lag48  = _lag_avg(region, hour, (dow-1)%7, month)
+        lag168 = _lag_avg(region, hour, dow, month)   # same DoW same month prev week
+        roll6  = np.mean([_lag_avg(region, (hour-i)%24, dow, month) for i in range(1,7)])
+        roll24 = np.mean([_lag_avg(region, (hour-i)%24, dow, month) for i in range(1,25)])
+        roll_std6 = np.std([_lag_avg(region, (hour-i)%24, dow, month) for i in range(1,7)])
+        row_v4 = [
+            hour, dow, month, year, int(dow>=5), season,
+            hour_sin, hour_cos, dow_sin, dow_cos,
+            month_sin, month_cos, doy_sin, doy_cos,
+            lag24, lag48, lag168, roll6, roll24, roll_std6,
+        ]
+        # feature_list from v4 has 20 features
+        V4_FEATURES = [
+            "hour","day_of_week","month","year","is_weekend","season",
+            "hour_sin","hour_cos","dow_sin","dow_cos",
+            "month_sin","month_cos","doy_sin","doy_cos",
+            "lag_24h","lag_48h","lag_168h",
+            "roll6_mean","roll24_mean","roll_std6",
+        ]
+        return np.array([row_v4])
+    else:
+        # Legacy 11-feature set (v3)
+        row_legacy = [
+            region_enc_compat, hour, dow, month, int(dow>=5), season,
+            hour_sin, hour_cos, dow_sin, dow_cos, month_sin, month_cos,
+        ]
+        return np.array([row_legacy])
 
 def get_action(demand_mw, is_city):
     hi, lo = (5000,3000) if is_city else (200000,150000)
@@ -265,6 +353,8 @@ def predict(req: PredictRequest):
         )
 
     region_enc = int(region_encoder.transform([region])[0])
+    import datetime as _dt
+    _doy = int(_dt.date.fromisoformat(req.date).timetuple().tm_yday) if req.date else 180
     share      = CITY_SHARE.get(req.city, 0.04)
     is_city    = req.city not in ("All India", "National")
 
@@ -277,36 +367,75 @@ def predict(req: PredictRequest):
     dow   = dt.weekday()
     month = dt.month
 
-    # ── Predict hourly series ──────────────────────────────────────────────
+    # ── Helper: compute area MW for a given hour ──────────────────────────
+    def compute_mw(h, d, m):
+        feats = make_features(region, h, d, m, year=dt.year, doy=_doy,
+                              region_enc_compat=region_enc)
+
+        if REGION_MODELS and region in REGION_MODELS:
+            # ── Per-region v4 path: predict normalized → inverse-scale ────
+            mdl    = REGION_MODELS[region]
+            scaler = REGION_SCALERS[region]
+            r_mw   = float(scaler.inverse_transform(
+                mdl.predict(feats).reshape(-1,1))[0,0])
+
+            if area_data:
+                area_load_kw = area_data["total_load_kw"]
+                avg_ref = float(scaler.inverse_transform(
+                    mdl.predict(
+                        make_features(region, 12, 0, m, year=dt.year, doy=_doy,
+                                      region_enc_compat=region_enc)
+                    ).reshape(-1,1))[0,0])
+                hourly_factor = r_mw / avg_ref if avg_ref > 0 else 1.0
+                return round((area_load_kw / 1000) * hourly_factor, 3)
+            else:
+                return round(r_mw * share, 3)
+        else:
+            # ── Legacy single-model fallback ──────────────────────────────
+            r_mw = float(_legacy_model.predict(feats)[0])
+            if area_data:
+                area_load_kw = area_data["total_load_kw"]
+                avg_regional = float(_legacy_model.predict(
+                    make_features(region, 12, 1, m,
+                                  region_enc_compat=region_enc))[0])
+                hourly_factor = r_mw / avg_regional if avg_regional > 0 else 1.0
+                return round((area_load_kw / 1000) * hourly_factor, 3)
+            else:
+                return round(r_mw * share, 3)
+
+    # ── Generate 6 historical hours before the selected time ───────────────
+    HIST_HOURS = 6
     series = []
+    for h in range(-HIST_HOURS, 0):
+        h_hour  = (hour + h) % 24
+        h_dow   = dow  # keep same day-of-week for simplicity
+        h_month = month
+        series.append(PredictionPoint(
+            time=f"{h_hour:02d}:00",
+            demand=compute_mw(h_hour, h_dow, h_month),
+            forecast=False,
+        ))
+
+    # ── Generate forecast window (user-requested duration) ─────────────────
     for h in range(req.duration):
         curr_hour = (hour + h) % 24
-        features  = make_features(region_enc, curr_hour, dow, month)
-        region_mw = float(model.predict(features)[0])
-
-        # Scale to city if not a TG-NPDCL area
-        if area_data:
-            # Use area's actual total load scaled by hour pattern
-            # (area_data has monthly kW load; scale by regional hourly pattern)
-            area_load_kw = area_data["total_load_kw"]
-            # Regional hourly factor (ratio vs average hour)
-            avg_regional = float(model.predict(
-                make_features(region_enc, 12, 1, month))[0])
-            hourly_factor = region_mw / avg_regional if avg_regional > 0 else 1.0
-            city_mw = (area_load_kw / 1000) * hourly_factor   # kW → MW
-        else:
-            city_mw = region_mw * share
-
         series.append(PredictionPoint(
             time=f"{curr_hour:02d}:00",
-            demand=round(city_mw, 3),
+            demand=compute_mw(curr_hour, dow, month),
             forecast=True,
         ))
 
-    demands  = [p.demand for p in series]
-    peak_idx = int(np.argmax(demands))
-    action, severity = get_action(max(demands), is_city)
-    confidence = round(min(95.0, max(70.0, 85.0 - req.duration * 0.5)), 1)
+    # Use only the forecast portion to compute summary stats
+    forecast_demands = [p.demand for p in series if p.forecast]
+    peak_idx_global  = max(
+        (i for i, p in enumerate(series) if p.forecast),
+        key=lambda i: series[i].demand
+    )
+    action, severity = get_action(max(forecast_demands), is_city)
+    # Confidence derived from actual model metrics when available
+    region_metrics = MODEL_METRICS.get(region, {})
+    base_conf = 100.0 - region_metrics.get("mape_pct", 15.0)  # e.g. MAPE 4% → 96% base
+    confidence = round(min(97.0, max(60.0, base_conf - req.duration * 0.4)), 1)
 
     # ── sqft-level calculations ────────────────────────────────────────────
     sqft_out = est_kwh = est_kwh_sqft = est_kw = monthly_est = area_int = None
@@ -334,10 +463,10 @@ def predict(req: PredictRequest):
     return PredictResponse(
         city=city_label,
         region=region,
-        predictedDemandMW=round(demands[0], 3),
+        predictedDemandMW=round(forecast_demands[0], 3),
         confidencePercent=confidence,
-        peakTime=series[peak_idx].time,
-        peakDemandMW=round(max(demands), 3),
+        peakTime=series[peak_idx_global].time,
+        peakDemandMW=round(max(forecast_demands), 3),
         recommendedAction=action,
         actionSeverity=severity,
         series=series,
@@ -395,6 +524,75 @@ def get_areas_by_state(state: str):
         "total_areas": sum(len(v) for v in result.values()),
     }
 
+# ── District hierarchy endpoints ───────────────────────────────────────────
+@app.get("/districts")
+def get_districts():
+    """Return all TG-NPDCL circles (district-level) with their divisions"""
+    return {
+        "circles": sorted(DISTRICT_HIERARCHY.keys()),
+        "total_circles": len(DISTRICT_HIERARCHY),
+    }
+
+@app.get("/districts/{circle}")
+def get_circle_detail(circle: str):
+    """Return all divisions within a circle, each with their subdivisions"""
+    circle_up = circle.strip().upper()
+    if circle_up not in DISTRICT_HIERARCHY:
+        raise HTTPException(status_code=404, detail=f"Circle '{circle}' not found")
+    data = DISTRICT_HIERARCHY[circle_up]
+    return {
+        "circle":    circle_up,
+        "divisions": sorted(data.keys()),
+        "detail":    data,
+    }
+
+@app.get("/districts/{circle}/{division}")
+def get_division_detail(circle: str, division: str):
+    """Return all sub-divisions + sections + areas within a division"""
+    circle_up   = circle.strip().upper()
+    division_up = division.strip().upper()
+    if circle_up not in DISTRICT_HIERARCHY:
+        raise HTTPException(status_code=404, detail=f"Circle '{circle}' not found")
+    div_data = DISTRICT_HIERARCHY[circle_up].get(division_up)
+    if div_data is None:
+        raise HTTPException(status_code=404, detail=f"Division '{division}' not in circle '{circle}'")
+    return {
+        "circle":       circle_up,
+        "division":     division_up,
+        "subdivisions": sorted(div_data.keys()),
+        "detail":       div_data,
+    }
+
+@app.get("/metrics")
+def get_metrics():
+    """Return per-region model accuracy metrics (from last training run)"""
+    if not MODEL_METRICS:
+        raise HTTPException(status_code=503, detail="Metrics not available — run train_model.py first")
+    summary = {
+        region: {
+            "best_model": m.get("best_model"),
+            "r2":         m.get("r2"),
+            "mae_mw":     m.get("mae_mw"),
+            "mape_pct":   m.get("mape_pct"),
+            "accuracy_pct": round(100 - m.get("mape_pct", 0), 1),
+        }
+        for region, m in MODEL_METRICS.items()
+    }
+    overall_mape = round(sum(m["mape_pct"] for m in summary.values()) / len(summary), 2)
+    return {
+        "model_version":  "v4-per-region-lag-scaled",
+        "overall_accuracy_pct": round(100 - overall_mape, 1),
+        "overall_mape_pct": overall_mape,
+        "regions": summary,
+    }
+
 @app.get("/health")
 def health():
-    return {"status":"ok","regions":KNOWN_REGIONS,"areas":len(AREA_LOOKUP),"circles":len(CIRCLE_AREAS)}
+    return {
+        "status":       "ok",
+        "model_version":"v4-per-region-lag-scaled" if REGION_MODELS else "v2-legacy",
+        "regions":      KNOWN_REGIONS,
+        "areas":        len(AREA_LOOKUP),
+        "circles":      len(CIRCLE_AREAS),
+        "district_hierarchy_circles": len(DISTRICT_HIERARCHY),
+    }
