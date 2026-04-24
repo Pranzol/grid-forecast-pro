@@ -27,6 +27,7 @@ const Index = () => {
         format(form.date, "yyyy-MM-dd"),
         form.time,
         form.duration,
+        form.sqft ? parseFloat(form.sqft) : undefined
       );
       setData(result);
       toast({

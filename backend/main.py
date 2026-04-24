@@ -13,8 +13,8 @@ with open("models/area_lookup.json") as f:
     AREA_LOOKUP = json.load(f)
 
 KNOWN_REGIONS = list(region_encoder.classes_)
-print(f"✅ Regions : {KNOWN_REGIONS}")
-print(f"✅ Areas   : {len(AREA_LOOKUP):,} Telangana areas loaded")
+print(f" Regions : {KNOWN_REGIONS}")
+print(f" Areas   : {len(AREA_LOOKUP):,} Telangana areas loaded")
 
 # ── City → Region map (major Indian cities) ────────────────────────────────
 CITY_TO_REGION = {
@@ -83,7 +83,7 @@ SEASON_MAP = {12:0,1:0,2:0, 3:1,4:1,5:1, 6:2,7:2,8:2, 9:3,10:3,11:3}
 app = FastAPI(title="GridForecast Pro API", version="2.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080","http://localhost:3000","http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],
 )
 
