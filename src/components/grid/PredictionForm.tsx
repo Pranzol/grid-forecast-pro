@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -34,6 +35,7 @@ export interface FormState {
   date: Date;
   time: string; // "HH:mm"
   duration: number; // hours
+  sqft?: string;
 }
 
 interface PredictionFormProps {
@@ -162,6 +164,19 @@ export function PredictionForm({
             <span>22h</span>
             <span>24h</span>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Building Size (Sqft) <span className="text-[10px] text-muted-foreground/70 normal-case ml-1">(Optional)</span>
+          </Label>
+          <Input 
+            type="number" 
+            placeholder="e.g. 5000" 
+            value={state.sqft || ""} 
+            onChange={(e) => setState((s) => ({ ...s, sqft: e.target.value }))}
+            className="bg-input/50 border-border hover:bg-input transition-smooth font-mono"
+          />
         </div>
 
         <Button
