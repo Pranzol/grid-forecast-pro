@@ -7,8 +7,8 @@ export interface PredictionPoint {
 }
 
 export interface PredictionResponse {
-  stateRegion: string;
-  area: string;
+  city: string;
+  region: string;
   predictedDemandMW: number;
   confidencePercent: number;
   peakTime: string;
@@ -26,9 +26,7 @@ export interface PredictionResponse {
 }
 
 export interface PredictionRequest {
-  stateRegion: string;
-  area: string;
-  /** ISO date string (YYYY-MM-DD) */
+  city: string;
   state?: string;
 
   date: string;
@@ -139,31 +137,7 @@ export async function fetchPredictionData(
     throw new Error(err.detail ?? `Prediction failed: HTTP ${res.status}`);
   }
 
-  const predictedDemandMW = series[series.length - 1].demand;
-  const confidencePercent = Math.round(88 + Math.random() * 9);
-
-  let recommendedAction = "Maintain current output";
-  let actionSeverity: PredictionResponse["actionSeverity"] = "normal";
-  if (peakDemand > 4500) {
-    recommendedAction = "Spin up auxiliary generators";
-    actionSeverity = "warning";
-  }
-  if (peakDemand > 4900) {
-    recommendedAction = "Activate peak load reserves immediately";
-    actionSeverity = "critical";
-  }
-
-  return {
-    stateRegion,
-    area,
-    predictedDemandMW,
-    confidencePercent,
-    peakTime: series[peakIdx]?.time ?? formatHour(startHour + duration / 2),
-    peakDemandMW: peakDemand,
-    recommendedAction,
-    actionSeverity,
-    series,
-  };
+  return res.json();
 }
 
 function formatHour(h: number): string {
