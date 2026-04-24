@@ -25,11 +25,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { CitySelector } from "./CitySelector";
+import { LocationSelector } from "./LocationSelector";
 import { TimeInput } from "./TimeInput";
 
 export interface FormState {
-  city: string;
+  stateRegion: string;
+  area: string;
   date: Date;
   time: string; // "HH:mm"
   duration: number; // hours
@@ -73,9 +74,11 @@ export function PredictionForm({
           <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Service Region
           </Label>
-          <CitySelector
-            value={state.city}
-            onChange={(city) => setState((s) => ({ ...s, city }))}
+          <LocationSelector
+            stateValue={state.stateRegion}
+            areaValue={state.area}
+            onStateChange={(stateRegion) => setState((s) => ({ ...s, stateRegion, area: "" }))}
+            onAreaChange={(area) => setState((s) => ({ ...s, area }))}
           />
         </div>
 

@@ -30,7 +30,8 @@ export interface PredictionPoint {
 }
 
 export interface PredictionResponse {
-  city: string;
+  stateRegion: string;
+  area: string;
   predictedDemandMW: number;
   confidencePercent: number;
   peakTime: string;
@@ -41,7 +42,8 @@ export interface PredictionResponse {
 }
 
 export interface PredictionRequest {
-  city: string;
+  stateRegion: string;
+  area: string;
   /** ISO date string (YYYY-MM-DD) */
   date: string;
   /** 24h time string (HH:mm) */
@@ -54,7 +56,8 @@ export interface PredictionRequest {
  * 🔌 INTEGRATION POINT — swap the body of this function with your backend call.
  */
 export async function fetchPredictionData(
-  city: string,
+  stateRegion: string,
+  area: string,
   date: string,
   time: string,
   duration: number,
@@ -129,7 +132,8 @@ export async function fetchPredictionData(
   }
 
   return {
-    city,
+    stateRegion,
+    area,
     predictedDemandMW,
     confidencePercent,
     peakTime: series[peakIdx]?.time ?? formatHour(startHour + duration / 2),
