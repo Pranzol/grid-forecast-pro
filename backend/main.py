@@ -248,6 +248,7 @@ class PredictResponse(BaseModel):
     city: str
     region: str
     predictedDemandMW: float
+    totalEnergyMWh: float                         # sum of MW * 1h = MWh for duration
     confidencePercent: float
     peakTime: str
     peakDemandMW: float
@@ -460,10 +461,14 @@ def predict(req: PredictRequest, api_key: str = Depends(get_api_key)):
         area_int       = intensity_label(kwh_mo_sqft)
         sqft_out       = sqft
 
+    avg_demand_mw  = round(sum(forecast_demands) / len(forecast_demands), 3)
+    total_energy_mwh = round(sum(forecast_demands), 3)  # MW × 1h each = MWh
+
     return PredictResponse(
         city=city_label,
         region=region,
-        predictedDemandMW=round(forecast_demands[0], 3),
+        predictedDemandMW=avg_demand_mw,
+        totalEnergyMWh=total_energy_mwh,
         confidencePercent=confidence,
         peakTime=series[peak_idx_global].time,
         peakDemandMW=round(max(forecast_demands), 3),
