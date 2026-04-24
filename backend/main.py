@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi.security.api_key import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -203,8 +204,10 @@ CITY_TO_REGION = {
     "Dibrugarh":"NorthEastern","Jorhat":"NorthEastern","Imphal":"NorthEastern",
     "Shillong":"NorthEastern","Aizawl":"NorthEastern","Kohima":"NorthEastern",
     "Dimapur":"NorthEastern","Agartala":"NorthEastern","Itanagar":"NorthEastern",
-    # National
+    # National & Regions
     "All India":"National","National":"National",
+    "Northern":"Northern", "Western":"Western", "Eastern":"Eastern",
+    "Southern":"Southern", "NorthEastern":"NorthEastern"
 }
 
 # City share of its region's total demand
@@ -217,6 +220,7 @@ CITY_SHARE = {
     "Warangal":0.04,"Hanumakonda":0.03,"Karimnagar":0.04,"Nizamabad":0.04,
     "Khammam":0.04,"Adilabad":0.02,"Guwahati":0.25,
     "All India":1.0,"National":1.0,
+    "Northern":1.0, "Western":1.0, "Eastern":1.0, "Southern":1.0, "NorthEastern":1.0
 }
 
 SEASON_MAP = {12:0,1:0,2:0, 3:1,4:1,5:1, 6:2,7:2,8:2, 9:3,10:3,11:3}
@@ -228,6 +232,19 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"], allow_headers=["*"],
 )
+
+# ── Security ───────────────────────────────────────────────────────────────
+API_KEY = os.environ.get("GRID_API_KEY", "grid_secure_key_2026")
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def get_api_key(api_key_header: str = Security(api_key_header)):
+    if api_key_header == API_KEY:
+        return api_key_header
+    else:
+        raise HTTPException(
+            status_code=403, detail="Could not validate API Key"
+        )
 
 # ── Schemas ────────────────────────────────────────────────────────────────
 class PredictRequest(BaseModel):
@@ -323,7 +340,7 @@ def intensity_label(kwh_per_sqft_month):
 
 # ── Predict endpoint ───────────────────────────────────────────────────────
 @app.post("/predict", response_model=PredictResponse)
-def predict(req: PredictRequest):
+def predict(req: PredictRequest, api_key: str = Depends(get_api_key)):
     area_key   = req.city.strip().upper()
     area_data  = AREA_LOOKUP.get(area_key)          # TG-NPDCL area hit
     region     = None
@@ -479,7 +496,7 @@ def predict(req: PredictRequest):
     )
 
 @app.get("/areas")
-def get_areas():
+def get_areas(api_key: str = Depends(get_api_key)):
     """Return all available TG-NPDCL areas grouped by circle"""
     grouped = {}
     for area_key, data in AREA_LOOKUP.items():
@@ -488,11 +505,11 @@ def get_areas():
     return {"circles": grouped, "total_areas": len(AREA_LOOKUP)}
 
 @app.get("/cities")
-def get_cities():
+def get_cities(api_key: str = Depends(get_api_key)):
     return {"cities": list(CITY_TO_REGION.keys())}
 
 @app.get("/states")
-def get_states():
+def get_states(api_key: str = Depends(get_api_key)):
     """Return all Indian states in alphabetical order with available circles"""
     return {
         "states": sorted(STATE_CIRCLES.keys()),
@@ -500,7 +517,7 @@ def get_states():
     }
 
 @app.get("/states/{state}/areas")
-def get_areas_by_state(state: str):
+def get_areas_by_state(state: str, api_key: str = Depends(get_api_key)):
     """Return all areas for a given Indian state, grouped by circle"""
     if state not in STATE_CIRCLES:
         raise HTTPException(status_code=404, detail=f"State '{state}' not found")
@@ -526,7 +543,7 @@ def get_areas_by_state(state: str):
 
 # ── District hierarchy endpoints ───────────────────────────────────────────
 @app.get("/districts")
-def get_districts():
+def get_districts(api_key: str = Depends(get_api_key)):
     """Return all TG-NPDCL circles (district-level) with their divisions"""
     return {
         "circles": sorted(DISTRICT_HIERARCHY.keys()),
@@ -534,7 +551,7 @@ def get_districts():
     }
 
 @app.get("/districts/{circle}")
-def get_circle_detail(circle: str):
+def get_circle_detail(circle: str, api_key: str = Depends(get_api_key)):
     """Return all divisions within a circle, each with their subdivisions"""
     circle_up = circle.strip().upper()
     if circle_up not in DISTRICT_HIERARCHY:
@@ -547,7 +564,7 @@ def get_circle_detail(circle: str):
     }
 
 @app.get("/districts/{circle}/{division}")
-def get_division_detail(circle: str, division: str):
+def get_division_detail(circle: str, division: str, api_key: str = Depends(get_api_key)):
     """Return all sub-divisions + sections + areas within a division"""
     circle_up   = circle.strip().upper()
     division_up = division.strip().upper()
@@ -564,7 +581,7 @@ def get_division_detail(circle: str, division: str):
     }
 
 @app.get("/metrics")
-def get_metrics():
+def get_metrics(api_key: str = Depends(get_api_key)):
     """Return per-region model accuracy metrics (from last training run)"""
     if not MODEL_METRICS:
         raise HTTPException(status_code=503, detail="Metrics not available — run train_model.py first")
