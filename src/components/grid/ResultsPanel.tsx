@@ -62,6 +62,14 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
   const severity = severityStyles[data.actionSeverity];
   const SevIcon = severity.icon;
 
+  // Compute Y-axis domain with padding so the curve is visible
+  const allDemands = data.series.map((p) => p.demand);
+  const minD = Math.min(...allDemands);
+  const maxD = Math.max(...allDemands);
+  const padding = (maxD - minD) * 0.3 || maxD * 0.2 || 0.01;
+  const yMin = Math.max(0, parseFloat((minD - padding).toFixed(4)));
+  const yMax = parseFloat((maxD + padding).toFixed(4));
+
   // Split series for chart rendering: continuous lines for historical & forecast
   const chartData = data.series.map((p) => ({
     time: p.time,
@@ -230,8 +238,15 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
                   fontSize={11}
                   tickLine={false}
                   axisLine={{ stroke: "hsl(var(--border))" }}
-                  tickFormatter={(v) => `${v}`}
-                  width={50}
+                  tickFormatter={(v) =>
+                    v >= 1000
+                      ? `${(v / 1000).toFixed(1)}k`
+                      : v >= 1
+                      ? `${v.toFixed(1)}`
+                      : `${v.toFixed(3)}`
+                  }
+                  domain={[yMin, yMax]}
+                  width={56}
                 />
                 <Tooltip
                   contentStyle={{
@@ -241,8 +256,13 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
                     fontSize: "12px",
                   }}
                   labelStyle={{ color: "hsl(var(--muted-foreground))" }}
-                  formatter={(value: number | null) =>
-                    value === null ? ["—", ""] : [`${value.toLocaleString()} MW`, ""]
+                  formatter={(value: number | null, name: string) =>
+                    value === null
+                      ? null
+                      : [
+                          `${value >= 1 ? value.toLocaleString() : value.toFixed(4)} MW`,
+                          name.charAt(0).toUpperCase() + name.slice(1),
+                        ]
                   }
                 />
                 <ReferenceLine

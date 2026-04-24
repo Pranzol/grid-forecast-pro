@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronDown, MapPin, Layers, Navigation } from "lucide-react";
+import { Check, ChevronDown, MapPin, Layers, Navigation, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ALL_STATES,
@@ -8,12 +8,13 @@ import {
   formatCircleName,
   formatAreaName,
 } from "@/lib/locationData";
-import { fetchStateAreas } from "@/lib/fetchLocationData";
+import { fetchStateAreas, fetchCircleDetail } from "@/lib/fetchLocationData";
 
 export interface LocationValue {
   state: string;
-  circle: string;   // district/circle (only for Telangana)
-  area: string;     // specific area
+  circle: string;    // district/circle (only for Telangana)
+  division: string;  // sub-district division (NEW)
+  area: string;      // specific area
 }
 
 interface LocationSelectorProps {
@@ -30,6 +31,7 @@ interface SelectProps {
   placeholder: string;
   options: { value: string; label: string }[];
   icon?: React.ReactNode;
+  count?: number;
 }
 
 function StyledSelect({
@@ -40,6 +42,7 @@ function StyledSelect({
   placeholder,
   options,
   icon,
+  count,
 }: SelectProps) {
   return (
     <div className="relative">
@@ -72,6 +75,11 @@ function StyledSelect({
         ))}
       </select>
       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      {count !== undefined && count > 0 && (
+        <span className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] font-mono text-muted-foreground/50 pointer-events-none">
+          {count.toLocaleString()}
+        </span>
+      )}
     </div>
   );
 }
@@ -79,28 +87,32 @@ function StyledSelect({
 // ── Main component ───────────────────────────────────────────────────────────
 export function LocationSelector({ value, onChange }: LocationSelectorProps) {
   const [circles, setCircles] = React.useState<string[]>([]);
+  const [divisions, setDivisions] = React.useState<string[]>([]);
   const [areas, setAreas] = React.useState<string[]>([]);
   const [loadingAreas, setLoadingAreas] = React.useState(false);
-  const [circleAreaMap, setCircleAreaMap] = React.useState<
-    Record<string, string[]>
+
+  // Full hierarchy: circle → division → { subdivision → { section → areas[] } }
+  const [circleAreaMap, setCircleAreaMap] = React.useState<Record<string, string[]>>({});
+  const [circleHierarchy, setCircleHierarchy] = React.useState<
+    Record<string, Record<string, Record<string, string[]>>>
   >({});
 
   // ── State options (alphabetical) ──────────────────────────────────────────
   const stateOptions = ALL_STATES.map((s) => ({ value: s, label: s }));
 
-  // ── When state changes, load circles ─────────────────────────────────────
+  // ── When state changes ────────────────────────────────────────────────────
   const handleStateChange = React.useCallback(
     async (state: string) => {
-      // Reset downstream selections
-      onChange({ state, circle: "", area: "" });
+      onChange({ state, circle: "", division: "", area: "" });
       setCircles([]);
+      setDivisions([]);
       setAreas([]);
       setCircleAreaMap({});
+      setCircleHierarchy({});
 
       if (!state) return;
 
       if (STATES_WITH_AREAS.has(state)) {
-        // State has granular data → fetch from backend
         setLoadingAreas(true);
         try {
           const data = await fetchStateAreas(state);
@@ -108,29 +120,62 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
           setCircles(circleList);
           setCircleAreaMap(data.circles);
         } catch {
-          // Fall back to static Telangana circles
           if (state === "Telangana") {
-            const staticCircles = [...TELANGANA_CIRCLES].sort();
-            setCircles(staticCircles);
+            setCircles([...TELANGANA_CIRCLES].sort());
           }
         } finally {
           setLoadingAreas(false);
         }
       }
-      // For states without granular data, circles/areas stay empty
-      // → prediction uses state's grid region
     },
     [onChange]
   );
 
-  // ── When circle changes, update area list ─────────────────────────────────
+  // ── When circle changes — load division hierarchy ─────────────────────────
   const handleCircleChange = React.useCallback(
-    (circle: string) => {
-      onChange({ ...value, circle, area: "" });
-      const circleAreas = (circleAreaMap[circle] ?? []).sort();
-      setAreas(circleAreas);
+    async (circle: string) => {
+      onChange({ ...value, circle, division: "", area: "" });
+      setDivisions([]);
+      setAreas([]);
+      setCircleHierarchy({});
+
+      if (!circle) return;
+
+      setLoadingAreas(true);
+      try {
+        const data = await fetchCircleDetail(circle);
+        setDivisions(data.divisions);
+        setCircleHierarchy(data.detail);
+      } catch {
+        // Fallback: flat area list from the pre-loaded map
+        const flatAreas = (circleAreaMap[circle] ?? []).sort();
+        setAreas(flatAreas);
+      } finally {
+        setLoadingAreas(false);
+      }
     },
     [value, onChange, circleAreaMap]
+  );
+
+  // ── When division changes — extract all areas from that division's hierarchy
+  const handleDivisionChange = React.useCallback(
+    (division: string) => {
+      onChange({ ...value, division, area: "" });
+      setAreas([]);
+
+      if (!division || !circleHierarchy[division]) return;
+
+      // Flatten subdivision → section → area[] into a single sorted list
+      const allAreas: string[] = [];
+      const divData = circleHierarchy[division];
+      for (const subdiv of Object.values(divData)) {
+        for (const sectionAreas of Object.values(subdiv)) {
+          allAreas.push(...sectionAreas);
+        }
+      }
+      setAreas(allAreas.sort());
+    },
+    [value, onChange, circleHierarchy]
   );
 
   // ── When area changes ─────────────────────────────────────────────────────
@@ -141,21 +186,14 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
     [value, onChange]
   );
 
-  const circleOptions = circles.map((c) => ({
-    value: c,
-    label: formatCircleName(c),
-  }));
+  const circleOptions  = circles.map((c) => ({ value: c, label: formatCircleName(c) }));
+  const divisionOptions= divisions.map((d) => ({ value: d, label: formatCircleName(d) }));
+  const areaOptions    = areas.map((a) => ({ value: a, label: formatAreaName(a) }));
 
-  const areaOptions = areas.map((a) => ({
-    value: a,
-    label: formatAreaName(a),
-  }));
-
-  const hasCircles = circles.length > 0;
-  const hasAreas = areas.length > 0;
-  const stateHasGranularData = value.state
-    ? STATES_WITH_AREAS.has(value.state)
-    : false;
+  const hasCircles   = circles.length > 0;
+  const hasDivisions = divisions.length > 0;
+  const hasAreas     = areas.length > 0;
+  const stateHasGranularData = value.state ? STATES_WITH_AREAS.has(value.state) : false;
 
   return (
     <div className="space-y-3">
@@ -178,7 +216,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
         />
       </div>
 
-      {/* ── Circle / District (only for states with data) ── */}
+      {/* ── Circle / District ── */}
       {value.state && stateHasGranularData && (
         <div className="space-y-1.5">
           <label
@@ -192,23 +230,51 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
                 Loading…
               </span>
             )}
+            {hasCircles && (
+              <span className="ml-auto text-[10px] font-mono text-muted-foreground/50">
+                {circles.length} circles
+              </span>
+            )}
           </label>
           <StyledSelect
             id="select-circle"
             value={value.circle}
             onChange={handleCircleChange}
             disabled={!hasCircles || loadingAreas}
-            placeholder={
-              loadingAreas ? "Loading circles..." : "Select a circle..."
-            }
+            placeholder={loadingAreas ? "Loading circles..." : "Select a circle..."}
             options={circleOptions}
             icon={<Layers className="h-3.5 w-3.5" />}
           />
         </div>
       )}
 
-      {/* ── Area (only when circle selected and has areas) ── */}
-      {value.circle && hasAreas && (
+      {/* ── Division (sub-district) ── NEW */}
+      {value.circle && hasDivisions && (
+        <div className="space-y-1.5">
+          <label
+            htmlFor="select-division"
+            className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
+          >
+            <Building2 className="h-3 w-3" />
+            Division
+            <span className="ml-auto text-[10px] font-mono text-muted-foreground/50">
+              {divisions.length} divisions
+            </span>
+          </label>
+          <StyledSelect
+            id="select-division"
+            value={value.division}
+            onChange={handleDivisionChange}
+            disabled={!hasDivisions}
+            placeholder="Select a division..."
+            options={divisionOptions}
+            icon={<Building2 className="h-3.5 w-3.5" />}
+          />
+        </div>
+      )}
+
+      {/* ── Area ── */}
+      {(value.division || value.circle) && hasAreas && (
         <div className="space-y-1.5">
           <label
             htmlFor="select-area"
