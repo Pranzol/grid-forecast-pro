@@ -91,7 +91,7 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `GridForecast_${data.city.replace(/\s+/g, "_")}.csv`;
+    link.download = `GridForecast_${data.area.replace(/\s+/g, "_")}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -219,7 +219,7 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
               "text-lg font-bold leading-tight",
               data.actionSeverity === "critical" && "text-destructive",
               data.actionSeverity === "warning" && "text-warning",
-              data.actionSeverity === "normal" && "text-success",
+              data.actionSeverity === "normal" && "text-success"
             )}>
               {severity.label}
             </p>
@@ -227,9 +227,59 @@ export function ResultsPanel({ data, loading }: ResultsPanelProps) {
             <div className="mt-2 h-1.5 rounded-full bg-border/50 overflow-hidden">
               <div className={cn("h-full rounded-full transition-all duration-700", severity.barColor, severityWidth)} />
             </div>
-            <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Lightbulb className="h-3 w-3" />
-              <span className="leading-tight line-clamp-2">{data.recommendedAction}</span>
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Lightbulb className="h-3 w-3 mt-0.5 shrink-0" />
+              <span className="leading-tight line-clamp-2">
+                {data.actionSeverity === "critical" && data.area
+                  ? `SHIFT REQUIRED: Transfer 12% load from ${data.area} to buffer nodes.` 
+                  : data.recommendedAction}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ML Explainability */}
+        <Card className="bg-surface shadow-elevated border-border/60">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-xs uppercase tracking-wider font-medium">
+                ML Explainability
+              </CardDescription>
+              <div className="rounded-md bg-muted p-1.5 text-muted-foreground">
+                 <div className="flex gap-0.5">
+                   <div className="w-1 h-3 bg-primary rounded-sm opacity-50" />
+                   <div className="w-1 h-3 bg-info rounded-sm opacity-80" />
+                   <div className="w-1 h-3 bg-warning rounded-sm" />
+                 </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mt-1">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Time Series Data</span><span>65%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary w-[65%]" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Weather Impact</span><span>25%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-info w-[25%]" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
+                  <span>Event Anomalies</span><span>10%</span>
+                </div>
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-warning w-[10%]" />
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

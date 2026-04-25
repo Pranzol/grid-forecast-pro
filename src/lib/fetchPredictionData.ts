@@ -17,6 +17,8 @@ export interface PredictionResponse {
   recommendedAction: string;
   actionSeverity: "normal" | "warning" | "critical";
   series: PredictionPoint[];
+  area?: string;
+  stateRegion?: string;
 
   sqft?: number;
   estimatedKwh?: number;
@@ -29,16 +31,14 @@ export interface PredictionResponse {
 export interface PredictionRequest {
   city: string;
   state?: string;
-
   date: string;
   time: string;
   duration: number;
   sqft?: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:5000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
 const API_KEY = import.meta.env.VITE_API_KEY ?? "grid_secure_key_2026";
-
 
 export function resolveCityFromLocation(location: LocationValue): {
   city: string;
@@ -47,7 +47,7 @@ export function resolveCityFromLocation(location: LocationValue): {
   const { region, state, circle, area } = location;
 
   if (area && area.trim()) {
-    
+
     return { city: area.trim().toUpperCase(), state };
   }
 
@@ -63,7 +63,7 @@ export function resolveCityFromLocation(location: LocationValue): {
     };
   }
 
-  
+
   const STATE_CAPITALS: Record<string, string> = {
     "Andhra Pradesh": "Vijayawada",
     "Arunachal Pradesh": "Itanagar",
@@ -124,26 +124,34 @@ export async function fetchPredictionData(
   const reqBody: PredictionRequest = { city, state, date, time, duration };
   if (sqft) reqBody.sqft = sqft;
 
-  const res = await fetch(`${API_BASE}/predict`, {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "X-API-Key": API_KEY 
-    },
-    body: JSON.stringify(reqBody),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/predict`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY,
+      },
+      body: JSON.stringify(reqBody),
+    });
+  } catch (networkErr) {
+    throw new Error(
+      `Cannot reach the backend server at ${API_BASE}. ` +
+      `Please make sure the Python API is running:\n` +
+      `  cd backend && python -m uvicorn main:app --port 8000 --reload`
+    );
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? `Prediction failed: HTTP ${res.status}`);
   }
 
-  return res.json();
-}
+  const data = await res.json();
 
-function formatHour(h: number): string {
-  const normalized = ((h % 24) + 24) % 24;
-  const hh = Math.floor(normalized);
-  const mm = Math.round((normalized - hh) * 60);
-  return `${hh.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
+  return {
+    ...data,
+    stateRegion: data.region,
+    area: data.city,
+  };
 }
