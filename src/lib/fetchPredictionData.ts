@@ -124,14 +124,23 @@ export async function fetchPredictionData(
   const reqBody: PredictionRequest = { city, state, date, time, duration };
   if (sqft) reqBody.sqft = sqft;
 
-  const res = await fetch(`${API_BASE}/predict`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": API_KEY
-    },
-    body: JSON.stringify(reqBody),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/predict`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY,
+      },
+      body: JSON.stringify(reqBody),
+    });
+  } catch (networkErr) {
+    throw new Error(
+      `Cannot reach the backend server at ${API_BASE}. ` +
+      `Please make sure the Python API is running:\n` +
+      `  cd backend && python -m uvicorn main:app --port 8000 --reload`
+    );
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

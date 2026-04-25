@@ -1,10 +1,11 @@
 import * as React from "react";
-import { Check, ChevronDown, MapPin, Layers, Navigation, Building2 } from "lucide-react";
+import { ChevronDown, MapPin, Layers, Navigation, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ALL_STATES,
   TELANGANA_CIRCLES,
   STATES_WITH_AREAS,
+  STATE_DISTRICTS,
   formatCircleName,
   formatAreaName,
   STATE_TO_REGION,
@@ -135,7 +136,8 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
 
       if (!state) return;
 
-      if (STATES_WITH_AREAS.has(state)) {
+      if (state === "Telangana") {
+        // Telangana: full API hierarchy (circle → division → area)
         setLoadingAreas(true);
         try {
           const data = await fetchStateAreas(state);
@@ -143,15 +145,16 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
           setCircles(circleList);
           setCircleAreaMap(data.circles);
         } catch {
-          if (state === "Telangana") {
-            setCircles([...TELANGANA_CIRCLES].sort());
-          }
+          setCircles([...TELANGANA_CIRCLES].sort());
         } finally {
           setLoadingAreas(false);
         }
+      } else if (STATE_DISTRICTS[state]) {
+        // All other states: load districts from static map instantly
+        setCircles([...STATE_DISTRICTS[state]].sort());
       }
     },
-    [onChange]
+    [onChange, value]
   );
 
   // ── When circle changes — load division hierarchy ─────────────────────────
@@ -261,7 +264,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
         </div>
       )}
 
-      {/* ── Circle / District ── */}
+      {/* ── District (all states) / Circle (Telangana deep hierarchy) ── */}
       {value.state && stateHasGranularData && (
         <div className="space-y-1.5">
           <label
@@ -269,7 +272,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
             className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"
           >
             <Layers className="h-3 w-3" />
-            Circle / District
+            {value.state === "Telangana" ? "Circle / District" : "District"}
             {loadingAreas && (
               <span className="ml-1 text-[10px] text-primary animate-pulse font-mono">
                 Loading…
@@ -277,7 +280,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
             )}
             {hasCircles && (
               <span className="ml-auto text-[10px] font-mono text-muted-foreground/50">
-                {circles.length} circles
+                {circles.length} {value.state === "Telangana" ? "circles" : "districts"}
               </span>
             )}
           </label>
@@ -286,10 +289,25 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
             value={value.circle}
             onChange={handleCircleChange}
             disabled={!hasCircles || loadingAreas}
-            placeholder={loadingAreas ? "Loading circles..." : "Select a circle..."}
+            placeholder={
+              loadingAreas
+                ? "Loading…"
+                : value.state === "Telangana"
+                ? "Select a circle…"
+                : "Select a district…"
+            }
             options={circleOptions}
             icon={<Layers className="h-3.5 w-3.5" />}
           />
+          {value.state !== "Telangana" && value.circle && (
+            <p className="text-[10px] text-muted-foreground/60 leading-relaxed px-1">
+              Unknown districts fall back to the{" "}
+              <span className="text-primary/80 font-medium">
+                {STATE_TO_REGION[value.state]} regional model
+              </span>
+              .
+            </p>
+          )}
         </div>
       )}
 
@@ -343,17 +361,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
         </div>
       )}
 
-      {/* ── Info badge for states without granular data ── */}
-      {value.state && !stateHasGranularData && (
-        <div className="flex items-start gap-2 rounded-md bg-primary/8 border border-primary/20 px-3 py-2">
-          <Check className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Forecasting{" "}
-            <span className="text-foreground font-medium">{value.state}</span>{" "}
-            using regional grid model. Area-level data is currently limited.
-          </p>
-        </div>
-      )}
+      {/* All states now have district data — badge removed */}
     </div>
   );
 }
