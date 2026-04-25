@@ -350,8 +350,7 @@ export function LocationSelector({ value, onChange }: LocationSelectorProps) {
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Forecasting{" "}
             <span className="text-foreground font-medium">{value.state}</span>{" "}
-            using regional grid model. Area-level data available for{" "}
-            <span className="text-primary font-medium">Telangana</span> only.
+            using regional grid model. Area-level data is currently limited.
           </p>
         </div>
       )}

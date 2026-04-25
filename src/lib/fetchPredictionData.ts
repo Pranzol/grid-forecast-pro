@@ -7,15 +7,18 @@ export interface PredictionPoint {
 }
 
 export interface PredictionResponse {
-  stateRegion: string;
-  area: string;
+  city: string;
+  region: string;
   predictedDemandMW: number;
+  totalEnergyMWh: number;
   confidencePercent: number;
   peakTime: string;
   peakDemandMW: number;
   recommendedAction: string;
   actionSeverity: "normal" | "warning" | "critical";
   series: PredictionPoint[];
+  area?: string;
+  stateRegion?: string;
 
   sqft?: number;
   estimatedKwh?: number;

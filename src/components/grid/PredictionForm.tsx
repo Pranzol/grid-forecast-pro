@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, addHours, addDays, startOfTomorrow } from "date-fns";
 import {
   Activity,
   CalendarIcon,
@@ -148,6 +148,42 @@ export function PredictionForm({
             value={state.time}
             onChange={(time) => setState((s) => ({ ...s, time }))}
           />
+          
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[10px] bg-secondary/30 hover:bg-primary/20 hover:text-primary transition-smooth border-border/50"
+              onClick={() => {
+                const now = new Date();
+                setState(s => ({ ...s, date: now, time: format(now, "HH:mm") }));
+              }}
+            >
+              Now
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[10px] bg-secondary/30 hover:bg-primary/20 hover:text-primary transition-smooth border-border/50"
+              onClick={() => {
+                const later = addHours(new Date(), 4);
+                setState(s => ({ ...s, date: later, time: format(later, "HH:mm") }));
+              }}
+            >
+              In 4 Hours
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[10px] bg-secondary/30 hover:bg-primary/20 hover:text-primary transition-smooth border-border/50"
+              onClick={() => {
+                const tomorrow = startOfTomorrow();
+                setState(s => ({ ...s, date: tomorrow, time: "12:00", duration: 12 }));
+              }}
+            >
+              Tomorrow Peak
+            </Button>
+          </div>
         </div>
 
         {/* ── Forecast Window (slider) ── */}
